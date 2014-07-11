@@ -1,0 +1,2838 @@
+// Beginning Game Programming, Third Edition
+// Game.cpp
+// Project Bueller Main Game Loop
+// AUTHORS: Bailey Johnston, Nate Hipp, Mike Bolles, Diane Abeyta
+// DATE: 5/19/2014
+
+#include <iostream> 
+#include <iomanip> 
+#include <sstream>
+#include "Declarations.h"
+#include "DirectSound.h"
+#include "DirectX.h"
+
+using namespace std;
+
+//Function Headers
+SCREEN SetScreen(int returnValue);
+vector<UNITS> LoadCreatureVect(vector<UNITS> cVect, HERO player, HERO opponent);
+DIRECTION checkDir(DIRECTION &direction);
+void GRID_PLACEMENT(SPRITE sprite, vector<UNITS> &unit, int pos);
+
+#pragma region Global Declarations
+//create global objects of classes
+HERO hero[2];		//player class
+HERO AI[4][10];
+bool left_animate = true;
+WORLD_MAP world_map;
+TITLE_SCREEN title;
+CASTLE castle;
+BATTLE battle;
+MAPCOORDINATES mapCoords;
+HUD hud;
+
+POINT p2;
+LPD3DXFONT font;
+
+//UNITS unit[16];
+vector<UNITS> battleCreatures;		//creature handlers
+UNITS pixie;		//Conflux
+UNITS pixieR;
+UNITS cyclops;
+UNITS cyclopsR;
+UNITS nagaQueen;
+UNITS nagaQueenR;
+UNITS azureDragon;
+UNITS azureDragonR;
+UNITS skeleton;		//Necropolis
+UNITS skeletonR;
+UNITS powerLich;
+UNITS powerLichR;
+UNITS wraith;
+UNITS wraithR;
+UNITS boneDragon;
+UNITS boneDragonR;
+UNITS centaur;		//Rampart
+UNITS centaurR;
+UNITS elf;
+UNITS elfR;
+UNITS unicorn;
+UNITS unicornR;
+UNITS goldDragon;
+UNITS goldDragonR;
+UNITS zombie;		//AI units
+UNITS zombieR;
+UNITS cerberus;
+UNITS cerberusR;
+UNITS golem;
+UNITS golemR;
+UNITS evilEye;
+UNITS evilEyeR;
+
+PORTRAIT portraitA, portraitB, portraitC, portraitD, portraitE, nextPortrait;		//instances of portrait struct
+DIRECTION direction;	//create instance of direction struct
+
+bool STAY_POSITION = false; // Keep X and Y coordinates for sprite in battlefield the same to draw grid
+bool ShowOptions  = false; // Display option in main menu screen
+
+int heroFlag = 0;		//handles player turn
+bool endTurn = false;
+
+bool initializeBattle;
+bool initializeWorldMap;
+
+
+//#define KEY_DOWN(vk_code) ((GetAsyncKeyState(vk_code) & 0x8000) ? 1 : 0)
+
+#pragma region MUSIC
+CSound *sound_menu = NULL;
+CSound *sound_map = NULL;
+CSound *sound_castle1 = NULL;
+CSound *sound_castle2 = NULL;
+CSound *sound_castle3 = NULL;
+CSound *sound_battle1 = NULL;
+CSound *sound_battle2 = NULL;
+CSound *sound_battle3 = NULL;
+CSound *sound_battle4 = NULL;
+CSound *sound_gameover = NULL;
+CSound *sound_credits = NULL;
+CSound *sound_click = NULL;
+CSound *sound_enter = NULL;
+
+#pragma endregion
+
+DWORD screentimer = timeGetTime();
+#pragma endregion
+
+const string APPTITLE = "Project Bueller";
+const int SCREENW = 800;
+const int SCREENH = 600;
+const int TILEWIDTH = 32;
+const int TILEHEIGHT = 32;
+const int HORIBUFFERW = 2304; //TILEWIDTH * 72;
+const int VERTBUFFERH = 2304; //TILEHEIGHT * 72;
+
+//place holder for current screen
+SCREEN currentScreen = titleScreen;	//titleScreen, worldMapScreen, battleScreen, castleScreen, creditsScreen,gameOverScreen		
+int battleSequence = 4;	// NEED TO MAKE A FUNCTION FOR THIS TO CHECK HERO SCREEN POSITION
+MAIN_MENU begin_game = PLAY;
+
+bool Game_Init(HWND window)
+{
+	int srand(GetTickCount());
+
+	if (!Direct3D_Init(window, SCREENW, SCREENH, false))		//initialize Direct3D
+	{	MessageBox(window,"Error initializing Direct3D",APPTITLE.c_str(),0);
+	return false;	}
+	if (!DirectInput_Init(window))		//initialize DirectInput
+	{	MessageBox(window,"Error initializing DirectInput",APPTITLE.c_str(),0);
+	return false;	}
+	if (!DirectSound_Init(window))		//initialize DirectSound
+	{	MessageBox(window,"Error initializing DirectSound",APPTITLE.c_str(),0);
+	return false;	}
+
+#pragma region CREATURE_INIT
+
+	//world_map.SetCollision();
+
+	//for(int i = 0; i < 4; i++)		//create random start positions on map for enemy AI units.
+	//{
+	//	for(int q = 0; q < 10; q++)
+	//	{
+	//		/*AI[i][q] = */world_map.SetRandomAI(AI[i][q]);
+	//	}
+	//}
+	//preset all static values for individual units
+	/*SetFrames(	int curframe, int startframe, int endframe, int columns, int walkstartframe, int walkendframe,
+	int attackstartframe, int attackendframe, int deathstartframe, int deathendframe, int rangestartframe, int rangeendframe); */
+	//Conflux
+	pixie.SetStats(2,10,0,0,75,5);		//(double unitDamage, double unitHP, int unitClass, int unitRace, int unitSpeed, int unitRange)	//speed set to NULL for now...
+	pixieR.SetStats(2,10,0,0,75,5);
+	pixie.SetFrames(0,0,11,12,56,66,12,19,45,50,NULL,NULL,128,128);
+	pixie_image  = LoadTexture("Resources/Sprites/Pixie Done.png",  D3DCOLOR_XRGB(255,0,255));
+	if (pixie_image == NULL) return false;
+	//pixie.SetBGPOS(6,4,6,4);
+	cyclops.SetStats(3,15,1,0,75,3);
+	cyclopsR.SetStats(3,15,1,0,75,3);
+	cyclops.SetFrames(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+	/*cyclops.SetBGPOS(1,3,1,3);*/
+	nagaQueen.SetStats(4,20,2,0,65,6);
+	nagaQueenR.SetStats(4,20,2,0,65,6);
+	nagaQueen.SetFrames(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+	/*nagaQueen.SetBGPOS(1,5,1,5);*/
+	azureDragon.SetStats(6,40,3,0,60,4);
+	azureDragonR.SetStats(6,40,3,0,60,4);
+	azureDragon.SetFrames(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+	/*azureDragon.SetBGPOS(1,7,1,7);*/
+	//Necropolis
+	skeleton.SetStats(2,10,0,1,70,5);	
+	skeletonR.SetStats(2,10,0,1,70,5);	
+	skeleton.SetFrames(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+	//skeleton.SetBGPOS(NULL,NULL,NULL,NULL);
+	powerLich.SetStats(3,15,1,1,75,3);
+	powerLichR.SetStats(3,15,1,1,75,3);
+	powerLich.SetFrames(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+	//powerLich.SetBGPOS(NULL,NULL,NULL,NULL);
+	wraith.SetStats(4,20,2,1,65,6);
+	wraithR.SetStats(4,20,2,1,65,6);
+	wraith.SetFrames(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+	//wraith.SetBGPOS(NULL,NULL,NULL,NULL);
+	boneDragon.SetStats(6,40,3,1,60,4);
+	boneDragonR.SetStats(6,40,3,1,60,4);
+	boneDragon.SetFrames(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+	//boneDragon.SetBGPOS(NULL,NULL,NULL,NULL);
+	//Rampart
+	centaur.SetStats(2,10,0,2,75,5);
+	centaurR.SetStats(2,10,0,2,75,5);
+	centaur.SetFrames(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+	//centaur.SetBGPOS(NULL,NULL,NULL,NULL);
+	elf.SetStats(3,15,1,2,75,3);
+	elfR.SetStats(3,15,1,2,75,3);
+	elf.SetFrames(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+	//elf.SetBGPOS(NULL,NULL,NULL,NULL);
+	unicorn.SetStats(4,20,2,2,65,6);
+	unicornR.SetStats(4,20,2,2,65,6);
+	unicorn.SetFrames(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+	//unicorn.SetBGPOS(NULL,NULL,NULL,NULL);
+	goldDragon.SetStats(6,40,3,2,60,4);
+	goldDragonR.SetStats(6,40,3,2,60,4);
+	goldDragon.SetFrames(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+	//goldDragon.SetBGPOS(NULL,NULL,NULL,NULL);
+	//AI Units
+	zombie.SetStats(title.GetDifficulty()*1,10,0,3,70,5);
+	zombieR.SetStats(title.GetDifficulty()*1,10,0,3,70,5);	
+	zombie.SetFrames(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+	//zombie.SetBGPOS(NULL,NULL,NULL,NULL);
+	cerberus.SetStats(title.GetDifficulty()*3,20,1,3,75,3);
+	cerberusR.SetStats(title.GetDifficulty()*3,20,1,3,75,3);
+	cerberus.SetFrames(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+	//cerberus.SetBGPOS(NULL,NULL,NULL,NULL);
+	golem.SetStats(title.GetDifficulty()*5,35,2,3,60,6);
+	golemR.SetStats(title.GetDifficulty()*5,35,2,3,60,6);
+	golem.SetFrames(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+	//golem.SetBGPOS(NULL,NULL,NULL,NULL);
+	evilEye.SetStats(title.GetDifficulty()*2,15,3,3,65,4);
+	evilEyeR.SetStats(title.GetDifficulty()*2,15,3,3,65,4);
+	evilEye.SetFrames(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+	//evilEye.SetBGPOS(NULL,NULL,NULL,NULL);
+#pragma endregion
+
+#pragma region IMAGE_LOADS 
+
+#pragma region SURFACES_BACKGROUNDS 
+
+#pragma region MENU SCREEN TEXTURES
+	select_play = LoadTexture("Resources/Main Menu/Play Button.png", D3DCOLOR_XRGB(255,0,255));	
+	if(!select_play) return false;
+	button.width = 171;
+	button.height = 55;
+	button.x = 318;
+	button.y = 398;
+
+	select_how_to_play = LoadTexture("Resources/Main Menu/How To Play Button.png", D3DCOLOR_XRGB(255,0,255));		
+	if(!select_how_to_play) return false;
+	button1.width = 158;
+	button1.height = 56;
+	button1.x = 324;
+	button1.y = 458;
+
+	select_exit = LoadTexture("Resources/Main Menu/Exit Button.png", D3DCOLOR_XRGB(255,0,255));		
+	if(!select_exit) return false;
+	button2.width = 139;
+	button2.height = 48;
+	button2.x = 334;
+	button2.y = 525;
+
+	option_easy = LoadTexture("Resources/Main Menu/Options Easy.png", D3DCOLOR_XRGB(255,0,255));		
+	if(!option_easy) return false;
+	option1.width = 184;
+	option1.height = 158;
+	option1.x = 592;
+	option1.y = 279;
+
+	option_easys = LoadTexture("Resources/Main Menu/Options Easy OK.png", D3DCOLOR_XRGB(255,0,255));		
+	if(!option_easys) return false;
+	option1s.width = 184;
+	option1s.height = 158;
+	option1s.x = 592;
+	option1s.y = 279;
+
+	option_hard = LoadTexture("Resources/Main Menu/Options Hard.png", D3DCOLOR_XRGB(255,0,255));		
+	if(!option_hard) return false;
+	option2.width = 184;
+	option2.height = 158;
+	option2.x = 592;
+	option2.y = 279;
+
+	option_hards = LoadTexture("Resources/Main Menu/Options Hard OK.png", D3DCOLOR_XRGB(255,0,255));		
+	if(!option_hards) return false;
+	option2s.width = 184;
+	option2s.height = 158;
+	option2s.x = 592;
+	option2s.y = 279;
+
+	option_insane = LoadTexture("Resources/Main Menu/Options Insane.png", D3DCOLOR_XRGB(255,0,255));		
+	if(!option_insane) return false;
+	option3.width = 184;
+	option3.height = 158;
+	option3.x = 592;
+	option3.y = 279;
+
+	option_insanes = LoadTexture("Resources/Main Menu/Options Insane OK.png", D3DCOLOR_XRGB(255,0,255));		
+	if(!option_insanes) return false;
+	option3s.width = 184;
+	option3s.height = 158;
+	option3s.x = 592;
+	option3s.y = 279;
+
+	select_town = LoadTexture("Resources/Main Menu/Town Select.png", D3DCOLOR_XRGB(255,0,255));		
+	if(!select_town) return false;
+	town.width = 100;
+	town.height = 45;
+	town.x = 300;
+	town.y = 550;
+
+	select_town1 = LoadTexture("Resources/Main Menu/Town Select Make.png", D3DCOLOR_XRGB(255,0,255));		
+	if(!select_town1) return false;
+	town1.width = 100;
+	town1.height = 45;
+	town1.x = 300;
+	town1.y = 550;
+
+	select_left = LoadTexture("Resources/Main Menu/Left Select.png", D3DCOLOR_XRGB(255,0,255));		
+	if(!select_left) return false;
+	option_left.width = 114;
+	option_left.height =109;
+	option_left.x = 22;
+	option_left.y = 436;
+
+	select_right = LoadTexture("Resources/Main Menu/Right Select.png", D3DCOLOR_XRGB(255,0,255));		
+	if(!select_right) return false;
+	option_right.width = 110;
+	option_right.height = 107;
+	option_right.x = 662;
+	option_right.y = 431;
+
+#pragma endregion
+
+#pragma region WORLD_MAP AND MENU SCREEN
+
+	// Menu Screen Surface declaration
+	start = LoadSurface("Resources/Main Menu/skyMainMenu1.png");		//800 x 600
+	if(!start) return false; 
+
+	defeat = LoadSurface("Resources/Backgrounds/Defeat.png");		//800 x 600
+	if(!defeat) return false; 
+
+	credits = LoadSurface("Resources/Backgrounds/Credits.png");		//800 x 600
+	if(!credits) return false; 
+
+	htp_image = LoadSurface("Resources/Backgrounds/How To Play.png");		//800 x 600
+	if(!htp_image) return false;
+
+	// Menu Screen Race Selection
+	conflux_option = LoadSurface("Resources/Backgrounds/Tower Option.png");		//800 x 600
+	if(!conflux_option) return false;
+
+	rampart_option = LoadSurface("Resources/Backgrounds/Druid Option.png");		//800 x 600
+	if(!rampart_option) return false;
+
+	necropolis_option = LoadSurface("Resources/Backgrounds/Undead Option.png");		//800 x 600
+	if(!necropolis_option) return false;
+
+	// World Map surface declaration
+	worldMap_image = LoadSurface("Resources/Backgrounds/WorldMap.bmp");		//2304 x 2304
+	if(!worldMap_image) return false;
+
+	hero1_image = LoadTexture("Resources/WorldMap/Heroes_Conflux.png", D3DCOLOR_XRGB(255,0,255));
+	if (hero1_image == NULL) return false;
+
+	hero2_image = LoadTexture("Resources/WorldMap/Heroes_Rampart.png", D3DCOLOR_XRGB(255,0,255));
+	if (hero2_image == NULL) return false;
+
+	hero3_image = LoadTexture("Resources/WorldMap/Heroes_Necropolis.png", D3DCOLOR_XRGB(255,0,255));
+	if (hero3_image == NULL) return false;
+
+	WM_HUD_image = LoadTexture("Resources/WorldMap/WorldMapHUD.png", D3DCOLOR_XRGB(255,0,255));
+	if (WM_HUD_image == NULL) return false;
+
+	//Conflux_Hero
+	/*Conflux_Hero.x = 0;
+	Conflux_Hero.y = 0;
+	Conflux_Hero.width = 64;
+	Conflux_Hero.height = 64;*/
+
+#pragma endregion
+
+#pragma region BATTLE_BACKGROUNDS
+	// BATTLE BACKGROUND SURFACES DECLARATION
+
+	battle_image1 = LoadSurface("Resources/Backgrounds/BattleGrass.png"); 
+	if(!battle_image1) return false; 
+
+	battle_image2 = LoadSurface("Resources/Backgrounds/BattleDirt.png"); 
+	if(!battle_image2) return false; 
+
+	battle_image3 = LoadSurface("Resources/Backgrounds/BattleSand.png"); 
+	if(!battle_image3) return false; 
+
+	battle_image4 = LoadSurface("Resources/Backgrounds/BattleLava.png"); 
+	if(!battle_image4) return false; 
+
+#pragma endregion
+
+#pragma region CASTLE_BACKGROUNDS
+	//LOAD CASTLE BACKGROUNDS HERE
+
+	//LPDIRECT3DSURFACE9 castle_image1 = NULL;
+	castle_image1 = LoadSurface("Resources/Backgrounds/Conflux.png"); 
+	if(!castle_image1) return false; 
+
+	//LPDIRECT3DSURFACE9 castle_image2 = NULL;
+	castle_image2 = LoadSurface("Resources/Backgrounds/Necropolis.png"); 
+	if(!castle_image2) return false; 
+
+	//LPDIRECT3DSURFACE9 castle_image3 = NULL;
+	castle_image3 = LoadSurface("Resources/Backgrounds/Rampart.png"); 
+	if(!castle_image3) return false; 
+#pragma endregion 
+#pragma endregion
+
+#pragma region BATTLEGROUND_SPRITES
+
+#pragma region BATTLEGROUND_HUD
+	BG_HUD_image = LoadTexture("Resources/Backgrounds/BattleGroundHUD.png", D3DCOLOR_XRGB(255,0,255));
+	if (BG_HUD_image == NULL) return false;
+
+	BG_HUD.x = 0;
+	BG_HUD.y = 496;
+	BG_HUD.width = 800;
+	BG_HUD.height = 103;
+
+	Creature_portraits = LoadTexture("Resources/Backgrounds/Portraits.png", D3DCOLOR_XRGB(255,0,255));
+	if (Creature_portraits == NULL) return false;
+
+	credit_image = LoadTexture("Resources/Sprites/Omar.png", D3DCOLOR_XRGB(255,0,255));
+	if (credit_image == NULL) return false;
+
+	credit.x = -400;
+	credit.y = 50;
+	credit.width = 195;
+	credit.height = 401;
+	credit.startframe = 1;
+	credit.endframe = 20;
+	credit.delay = 2;
+	credit.frame = 0;
+	credit.velx = 0;
+	credit.vely = 0;
+	credit.columns = 21;
+
+	//catRight.x = -96;
+  //  catRight.y = 155;
+  //  catRight.width = 96;
+  //  catRight.height = 96;
+  //  catRight.curframe = 1;
+  //  catRight.lastframe = 5;
+  //  catRight.animdelay = 10;
+  //  catRight.animcount = 0;
+  //  catRight.movex = 0;
+  //  catRight.movey = 0;
+
+#pragma endregion
+
+#pragma region COLLISION OBJECTS LOAD
+
+	moveGreen = LoadTexture("Resources/Battleground Collision/Move Green.png", D3DCOLOR_XRGB(255,0,255));
+	if (moveGreen == NULL) return false;
+
+	green.x = 0;
+	green.y = 100;
+	green.width = 50;
+	green.height = 50;
+
+	moveRed = LoadTexture("Resources/Battleground Collision/Move Red.png",  D3DCOLOR_XRGB(255,0,255));
+	if (moveRed == NULL) return false;
+
+	red.x = 100;
+	red.y = 100;
+	red.width = 50;
+	red.height = 50;
+
+	moveBlueGreen = LoadTexture("Resources/Battleground Collision/Move BlueGreen.png",  D3DCOLOR_XRGB(255,0,255));
+	if (moveBlueGreen == NULL) return false;
+
+	blueGreen.x = 0;
+	blueGreen.y = 0;
+	blueGreen.width = 50;
+	blueGreen.height = 50;
+
+	moveBlueRed = LoadTexture("Resources/Battleground Collision/Move BlueRed.png",  D3DCOLOR_XRGB(255,0,255));
+	if (moveBlueRed == NULL) return false;
+
+	blueRed.x = 0;
+	blueRed.y = 50;
+	blueRed.width = 50;
+	blueRed.height = 50;
+
+	map1Obj1 = LoadTexture("Resources/Battleground Collision/Map1Obj1.png", D3DCOLOR_XRGB(0,255,255));
+	if (map1Obj1 == NULL) return false;
+
+	grass1.x = 200;
+	grass1.y = 200;
+	grass1.width = 226;
+	grass1.height = 95;
+
+	map1Obj2 = LoadTexture("Resources/Battleground Collision/Map1Obj2.png", D3DCOLOR_XRGB(0,255,255));
+	if (map1Obj2 == NULL) return false;
+
+	grass2.x = 500;
+	grass2.y = 350;
+	grass2.width = 134;
+	grass2.height = 51;
+
+	map1Obj3 = LoadTexture("Resources/Battleground Collision/Map1Obj3.png", D3DCOLOR_XRGB(0,255,255));
+	if (map1Obj3 == NULL) return false;
+
+	grass3.x = 100;
+	grass3.y = 450;
+	grass3.width = 43;
+	grass3.height = 47;
+
+	map2Obj1 = LoadTexture("Resources/Battleground Collision/Map2Obj1.png", D3DCOLOR_XRGB(0,255,255));
+	if (map2Obj1 == NULL) return false;
+
+	dirt1.x = 450;
+	dirt1.y = 200;
+	dirt1.width = 154;
+	dirt1.height = 90;
+
+	map2Obj2 = LoadTexture("Resources/Battleground Collision/Map2Obj2.png", D3DCOLOR_XRGB(0,255,255));
+	if (map2Obj2 == NULL) return false;
+
+	dirt2.x = 300;
+	dirt2.y = 250;
+	dirt2.width = 87;
+	dirt2.height = 43;
+
+	map2Obj3 = LoadTexture("Resources/Battleground Collision/Map2Obj3.png", D3DCOLOR_XRGB(0,255,255));
+	if (map2Obj3 == NULL) return false;
+
+	dirt3.x = 400;
+	dirt3.y = 400;
+	dirt3.width = 174;
+	dirt3.height = 102;
+
+	map3Obj1 = LoadTexture("Resources/Battleground Collision/Map3Obj1.png", D3DCOLOR_XRGB(0,255,255));
+	if (map3Obj1 == NULL) return false;
+
+	sand1.x = 100;
+	sand1.y = 400;
+	sand1.width = 132;
+	sand1.height = 84;
+
+	map3Obj2 = LoadTexture("Resources/Battleground Collision/Map3Obj2.png", D3DCOLOR_XRGB(0,255,255));
+	if (map3Obj2 == NULL) return false;
+
+	sand2.x = 400;
+	sand2.y = 50;
+	sand2.width = 153;
+	sand2.height = 108;
+
+	map4Obj1 = LoadTexture("Resources/Battleground Collision/Map4Obj1.png", D3DCOLOR_XRGB(0,255,255));
+	if (map4Obj1 == NULL) return false;
+
+	lava1.x = 250;
+	lava1.y = 300;
+	lava1.width = 209;
+	lava1.height = 104;
+
+	map4Obj2 = LoadTexture("Resources/Battleground Collision/Map4Obj2.png", D3DCOLOR_XRGB(0,255,255));
+	if (map4Obj2 == NULL) return false;
+
+	lava2.x = 400;
+	lava2.y = 50;
+	lava2.width = 133;
+	lava2.height = 85;
+
+#pragma endregion
+
+#pragma region RAMPART_UNITS
+	/*Centaur_image_walk = LoadTexture("Centaur Walk.bmp", D3DCOLOR_XRGB(255,0,255)); 
+	if (!Centaur_image_walk) return false; 
+	Centaur_image_attack = LoadTexture("Centaur Attack.bmp", D3DCOLOR_XRGB(255,0,255)); 
+	if (!Centaur_image_attack) return false;*/
+#pragma endregion
+
+#pragma region CONFLUX_UNITS
+
+#pragma endregion
+
+#pragma region NECROPOLIS_UNITS
+
+#pragma endregion
+	pixie.SetBGPOS(1,0,1,0 + 2); // pass in position on grid
+	pixie.SetIdleSprite(10, pixie_image); // pass in columns
+	pixieR.SetBGPOS(14,0,14,0 + 2);
+	cyclops.SetBGPOS(1,4,1,4 + 2);
+	cyclopsR.SetBGPOS(14,4,14,4 + 2);
+	nagaQueen.SetBGPOS(1,6,1,6 + 2);
+	nagaQueenR.SetBGPOS(14,6,14,6 + 2);
+	azureDragon.SetBGPOS(1,8,1,8 + 2);
+	azureDragonR.SetBGPOS(14,8,14,8 + 2);
+
+	skeleton.SetBGPOS(1,0,1,0 + 2);
+	skeletonR.SetBGPOS(14,0,14,0 + 2);
+	powerLich.SetBGPOS(1,4,1,4 + 2);
+	powerLichR.SetBGPOS(14,4,14,4 + 2);
+	wraith.SetBGPOS (1,6,1,6 + 2);
+	wraithR.SetBGPOS (14,6,14,6 + 2);
+	boneDragon.SetBGPOS (1,7,1, 7+2);
+	boneDragonR.SetBGPOS (14,7,14, 7+2);
+
+	centaur.SetBGPOS (1,0,1,0 + 2);
+	centaurR.SetBGPOS (14,0,14,0 + 2);
+	elf.SetBGPOS(1,4,1,4 + 2);
+	elfR.SetBGPOS(14,4,14,4 + 2);
+	unicorn.SetBGPOS(1,6,1,6 + 2);
+	unicornR.SetBGPOS(14,6,14,6 + 2);
+	goldDragon.SetBGPOS(1,8,1,8 + 2);
+	goldDragonR.SetBGPOS(14,8,14,8 + 2);
+
+	zombie.SetBGPOS(1,0,1,0 + 2);
+	zombieR.SetBGPOS(14,0,14,0 + 2);
+	cerberus.SetBGPOS(1,0,1,0 + 2);
+	cerberusR.SetBGPOS(14,0,14,0 + 2);
+	golem.SetBGPOS(1,0,1,0 + 2);
+	golemR.SetBGPOS(14,0,14,0 + 2);
+	evilEye.SetBGPOS(1,0,1,0 + 2);
+	evilEyeR.SetBGPOS(14,0,14,0 + 2);
+
+#pragma endregion
+#pragma endregion 
+
+#pragma region FONT_LOADS
+	font = MakeFont("Times New Roman", 28);
+#pragma endregion
+
+	//get pointer to the back buffer
+	d3ddev->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &backbuffer); 
+#pragma region SOUND_LOADS
+	sound_menu = LoadSound("Resources/Music/Main Menu.wav");
+	if(!sound_menu)
+	{
+		MessageBox(window, "Error loading Sound 1", APPTITLE.c_str(),0);
+		return false;
+	}
+
+	sound_map = LoadSound("Resources/Music/World Map.wav");
+	if(!sound_map)
+	{
+		MessageBox(window, "Error loading Sound 2", APPTITLE.c_str(),0);
+		return false;
+	}
+
+	sound_castle1 = LoadSound("Resources/Music/Conflux Town.wav");
+	if(!sound_castle1)
+	{
+		MessageBox(window, "Error loading Sound 3", APPTITLE.c_str(),0);
+		return false;
+	}
+	sound_castle2 = LoadSound("Resources/Music/Rampart Town.wav");
+	if(!sound_castle2)
+	{
+		MessageBox(window, "Error loading Sound 4", APPTITLE.c_str(),0);
+		return false;
+	}
+	sound_castle3 = LoadSound("Resources/Music/Necropolis Town.wav");
+	if(!sound_castle3)
+	{
+		MessageBox(window, "Error loading Sound 5", APPTITLE.c_str(),0);
+		return false;
+	}
+	sound_battle1 = LoadSound("Resources/Music/battle 1.wav");
+	if(!sound_battle1)
+	{
+		MessageBox(window, "Error loading Sound 5", APPTITLE.c_str(),0);
+		return false;
+	}
+	sound_battle2 = LoadSound("Resources/Music/battle 2.wav");
+	if(!sound_battle2)
+	{
+		MessageBox(window, "Error loading Sound 5", APPTITLE.c_str(),0);
+		return false;
+	}
+	sound_battle3 = LoadSound("Resources/Music/battle 3.wav");
+	if(!sound_battle3)
+	{
+		MessageBox(window, "Error loading Sound 5", APPTITLE.c_str(),0);
+		return false;
+	}
+	sound_battle4 = LoadSound("Resources/Music/battle 4.wav");
+	if(!sound_battle4)
+	{
+		MessageBox(window, "Error loading Sound 5", APPTITLE.c_str(),0);
+		return false;
+	}
+	sound_gameover = LoadSound("Resources/Music/GameOver.wav");
+	if(!sound_gameover)
+	{
+		MessageBox(window, "Error loading Sound 6", APPTITLE.c_str(),0);
+		return false;
+	}
+	sound_credits = LoadSound("Resources/Music/Credits.wav");
+	if(!sound_credits)
+	{
+		MessageBox(window, "Error loading Sound 6", APPTITLE.c_str(),0);
+		return false;
+	}
+	sound_enter = LoadSound("Resources/Sounds/Enter.wav");
+	if(!sound_enter)
+	{
+		MessageBox(window, "Error loading Sound enter", APPTITLE.c_str(),0);
+		return false;
+	}
+	sound_click = LoadSound("Resources/Sounds/Click.wav");
+	if(!sound_click)
+	{
+		MessageBox(window, "Error loading Sound click", APPTITLE.c_str(),0);
+		return false;
+	}
+	
+#pragma endregion 
+	return true;
+}
+
+void Game_Run(HWND window)
+{
+	if (!d3ddev) return;
+	DirectInput_Update();
+	d3ddev->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(100,0,0), 1.0f, 0);
+
+	int remainingMove = 0;
+	//bool canMove = true;
+
+	
+
+	
+#pragma region RECT STRETCH FILES
+
+	RECT worldMapSource = {world_map.GetMapCoords().left,world_map.GetMapCoords().top,world_map.GetMapCoords().right,world_map.GetMapCoords().bottom};
+	RECT worldMapDest = {0,0,SCREENW,SCREENH};
+	RECT WM_HUD_rect = {0,0,800,600};
+	RECT credit_rect;
+	credit_rect.left = (credit.curframe % credit.columns) * credit.width;
+          credit_rect.top = (credit.curframe / credit.columns) * credit.height;
+            credit_rect.right = credit_rect.left + credit.width;
+	        credit_rect.bottom = credit_rect.top + credit.height;
+
+	D3DXVECTOR3 HUD_POS ((float)0, (float)0, 0);
+	D3DXVECTOR3 credit_POS ((float)credit.x, (float)credit.y, 0);
+
+	RECT hero_Source[2];
+
+	hero_Source[0].left = 0;
+	hero_Source[0].top = 0;
+	hero_Source[0].right = 63;
+	hero_Source[0].bottom = 63;
+	//RECT hero1_Dest = {	((mapCoords.right - mapCoords.left) / 2) - 32,	//centered left coordinate
+	//					((mapCoords.bottom - mapCoords.top) / 2) - 32,	//centered top coordinate
+
+	hero_Source[1].left = 0;
+	hero_Source[1].top = 0;
+	hero_Source[1].right = 63;
+	hero_Source[1].bottom = 63;
+	//RECT hero2_Dest = {	((mapCoords.right - mapCoords.left) / 2) - 32,	//centered left coordinate
+	//					((mapCoords.bottom - mapCoords.top) / 2) - 32,	//centered top coordinate
+
+	/*D3DXVECTOR3 hero1_pos ((float)hero[0].GetX(), (float)hero[0].GetY(), 0);
+	D3DXVECTOR3 hero2_pos ((float)hero[1].GetX(), (float)hero[1].GetY(), 0);*/
+
+	D3DXVECTOR3 hero1_pos ((float)(SCREENW/2)-32, (float)(SCREENH/2)-32, 0);
+	D3DXVECTOR3 hero2_pos ((float)(SCREENW/2)-32, (float)(SCREENH/2)-32, 0);
+
+
+	RECT obj_Rect1;
+	RECT obj_Rect2;
+	RECT obj_Rect3;
+	RECT move_Rect;
+
+	RECT button_rect;
+	RECT button_rect1;
+	RECT button_rect2;
+
+	button_rect.top = 0;
+	button_rect.left = 0;
+	button_rect.right = button.width;
+	button_rect.bottom = button.height;
+
+	D3DXVECTOR3 button_pos ((float)button.x, (float)button.y, 0);
+	D3DXVECTOR3 button_pos1 ((float)button.x, (float)button.y + 50, 0);
+	D3DXVECTOR3 button_pos2 ((float)button.x, (float)button.y + 100, 0);
+
+	RECT option_rect1;
+	RECT option_rect2;
+	RECT option_rect3;
+
+	option_rect1.top = 0;
+	option_rect1.left = 0;
+	option_rect1.right = option1.width;
+	option_rect1.bottom = option1.height;
+
+	option_rect2.top = 0;
+	option_rect2.left = 0;
+	option_rect2.right = option2.width;
+	option_rect2.bottom = option2.height;
+
+	option_rect3.top = 0;
+	option_rect3.left = 0;
+	option_rect3.right = option3.width;
+	option_rect3.bottom = option3.height;
+
+	D3DXVECTOR3 option_pos1 ((float)option1.x, (float)option1.y, 0);
+	D3DXVECTOR3 option_pos2 ((float)option2.x, (float)option2.y, 0);
+	D3DXVECTOR3 option_pos3 ((float)option3.x, (float)option3.y, 0);
+
+	RECT town_rect;
+	RECT town_rect1;
+
+	town_rect.top = 0;
+	town_rect.left = 0;
+	town_rect.right = town.width;
+	town_rect.bottom = town.height;
+
+	town_rect1.top = 0;
+	town_rect1.left = 0;
+	town_rect1.right = town1.width;
+	town_rect1.bottom = town1.height;
+
+	D3DXVECTOR3 town_pos ((float)town.x, (float)town.y, 0);
+	D3DXVECTOR3 town_pos1 ((float)town.x, (float)town.y, 0);
+
+	RECT left_rect;
+	RECT right_rect;
+
+	left_rect.top = 0;
+	left_rect.left = 0;
+	left_rect.right = option_left.width;
+	left_rect.bottom = option_left.height;
+
+	right_rect.top = 0;
+	right_rect.left = 0;
+	right_rect.right = option_right.width;
+	right_rect.bottom = option_right.height;
+
+	D3DXVECTOR3 left_pos ((float)option_left.x, (float)option_left.y, 0);
+	D3DXVECTOR3 right_pos ((float)option_right.x, (float)option_right.y, 0);
+
+	RECT BG_HUD_rect;
+	BG_HUD_rect.left = 0;
+	BG_HUD_rect.top = 0;
+	BG_HUD_rect.right =  BG_HUD.width;
+	BG_HUD_rect.bottom = BG_HUD.height;
+
+	D3DXVECTOR3 BG_HUD_POS ((float)BG_HUD.x, (float)BG_HUD.y, 0);
+
+	RECT Portrait_A_rect = {portraitA.leftSource, portraitA.topSource, portraitA.rightSource, portraitA.bottomSource};
+	RECT Portrait_B_rect = {portraitB.leftSource, portraitB.topSource, portraitB.rightSource, portraitB.bottomSource};
+	RECT Portrait_C_rect = {portraitC.leftSource, portraitC.topSource, portraitC.rightSource, portraitC.bottomSource};
+	RECT Portrait_D_rect = {portraitD.leftSource, portraitD.topSource, portraitD.rightSource, portraitD.bottomSource};
+	RECT Portrait_E_rect = {portraitE.leftSource, portraitE.topSource, portraitE.rightSource, portraitE.bottomSource};
+	RECT Portrait_F_rect = {nextPortrait.leftSource, nextPortrait.topSource, nextPortrait.rightSource, nextPortrait.bottomSource};
+
+	static float portrait_Axis = 202;
+
+	D3DXVECTOR3 PortraitA_POS ((float)portrait_Axis, (float)524, 0);
+	D3DXVECTOR3 PortraitB_POS ((float)portrait_Axis + (58), (float)524, 0);
+	D3DXVECTOR3 PortraitC_POS ((float)portrait_Axis + (58 * 2), (float)524, 0);
+	D3DXVECTOR3 PortraitD_POS ((float)portrait_Axis + (58 * 3), (float)524, 0);
+	D3DXVECTOR3 PortraitE_POS ((float)portrait_Axis + (58 * 4), (float)524, 0);
+	D3DXVECTOR3 PortraitF_POS ((float)portrait_Axis + (58 * 5), (float)524, 0);
+
+#pragma endregion
+
+
+	if (timeGetTime() > screentimer + 14)		//slow rendering to approximately 60 fps
+	{
+		screentimer = GetTickCount();
+
+		if (d3ddev->BeginScene())		//start rendering
+		{
+			switch(currentScreen)		//check against what screen we are running and program in the appropriate data
+			{
+			case titleScreen:	//run title sequence
+
+#pragma region TITLE SCREEN
+				Sleep(50);
+				sound_menu->Play(0, DSBPLAY_LOOPING);
+				spriteobj->Begin(D3DXSPRITE_ALPHABLEND);
+				switch(begin_game)
+				{
+				case PLAY:
+					d3ddev->StretchRect(start, NULL, backbuffer, NULL, D3DTEXF_NONE);
+					spriteobj->Draw(select_play, &button_rect, NULL, &button_pos, D3DCOLOR_XRGB(255,255,255));					
+					if (KEY_DOWN(VK_DOWN))
+					{
+						Sleep(100);
+						begin_game = HOW_TO_PLAY;
+						PlaySound(sound_click);
+					}
+
+					if (KEY_DOWN(VK_RETURN))
+					{
+						Sleep(100);
+						PlaySound(sound_enter);
+						begin_game = OPTIONS_EASY;
+					}
+					break;
+
+				case HOW_TO_PLAY:
+					d3ddev->StretchRect(start, NULL, backbuffer, NULL, D3DTEXF_NONE);
+					spriteobj->Draw(select_play, &button_rect, NULL, &button_pos1, D3DCOLOR_XRGB(255,255,255));
+					if (KEY_DOWN(VK_DOWN))
+					{
+						Sleep(100);
+						begin_game = EXIT;
+						PlaySound(sound_click);
+					}
+					if (KEY_DOWN(VK_UP))
+					{
+						Sleep(100);
+						begin_game = PLAY;
+						PlaySound(sound_click);
+					}
+					if (KEY_DOWN(VK_RETURN))
+					{
+						Sleep(100);
+						begin_game = HOW_TO_PLAY_SHOW;
+						PlaySound(sound_enter);
+					}
+					break;
+
+				case HOW_TO_PLAY_SHOW:
+					d3ddev->StretchRect(htp_image, NULL, backbuffer, NULL, D3DTEXF_NONE);
+					if (KEY_DOWN(VK_RETURN))
+					{
+						Sleep(100);
+						begin_game = HOW_TO_PLAY;
+						PlaySound(sound_enter);
+					}
+					break;
+				case OPTIONS_EASY:
+					d3ddev->StretchRect(start, NULL, backbuffer, NULL, D3DTEXF_NONE);
+					spriteobj->Draw(option_easy, &option_rect1, NULL, &option_pos1, D3DCOLOR_XRGB(255,255,255));
+					if (KEY_DOWN(VK_DOWN))
+					{
+						Sleep(100);
+						PlaySound(sound_click);
+						begin_game = OPTIONS_HARD;
+					}
+					if (KEY_DOWN(VK_LEFT))
+					{
+						Sleep(100);
+						PlaySound(sound_click);
+						begin_game = PLAY;
+					}
+					if (KEY_DOWN(VK_RETURN))
+					{
+						Sleep(100);
+						begin_game = OPTIONS_EASY_OK;
+						PlaySound(sound_enter);
+					}
+					break;
+
+				case OPTIONS_EASY_OK:
+					d3ddev->StretchRect(start, NULL, backbuffer, NULL, D3DTEXF_NONE);
+					spriteobj->Draw(option_easys, &option_rect1, NULL, &option_pos1, D3DCOLOR_XRGB(255,255,255));
+					if (KEY_DOWN(VK_LEFT))
+					{
+						Sleep(100);
+						begin_game = OPTIONS_EASY;
+						PlaySound(sound_click);
+					}
+					if (KEY_DOWN(VK_RETURN))
+					{
+						Sleep(100);
+						begin_game = CONFLUX;
+						title.SetDifficulty(1);
+						PlaySound(sound_enter);
+					}
+					break;
+
+				case OPTIONS_HARD:
+					d3ddev->StretchRect(start, NULL, backbuffer, NULL, D3DTEXF_NONE);
+					spriteobj->Draw(option_hard, &option_rect2, NULL, &option_pos2, D3DCOLOR_XRGB(255,255,255));
+					if (KEY_DOWN(VK_DOWN))
+					{
+						Sleep(100);
+						begin_game = OPTIONS_INSANE;
+						PlaySound(sound_click);
+					}
+					if (KEY_DOWN(VK_UP))
+					{
+						Sleep(100);
+						begin_game = OPTIONS_EASY;
+						PlaySound(sound_click);
+					}
+					if (KEY_DOWN(VK_LEFT))
+					{
+						Sleep(100);
+						PlaySound(sound_click);
+						begin_game = PLAY;
+					}
+					if (KEY_DOWN(VK_RETURN))
+					{
+						Sleep(100);
+						begin_game = OPTIONS_HARD_OK;
+						PlaySound(sound_enter);
+					}
+					break;
+
+				case OPTIONS_HARD_OK:
+					d3ddev->StretchRect(start, NULL, backbuffer, NULL, D3DTEXF_NONE);
+					spriteobj->Draw(option_hards, &option_rect2, NULL, &option_pos2, D3DCOLOR_XRGB(255,255,255));
+					if (KEY_DOWN(VK_LEFT))
+					{
+						Sleep(100);
+						begin_game = OPTIONS_HARD;
+						PlaySound(sound_click);
+					}
+					if (KEY_DOWN(VK_RETURN))
+					{
+						Sleep(100);
+						begin_game = CONFLUX;
+						title.SetDifficulty(2);
+						PlaySound(sound_enter);
+					}
+					break;
+
+				case OPTIONS_INSANE:
+					d3ddev->StretchRect(start, NULL, backbuffer, NULL, D3DTEXF_NONE);
+					spriteobj->Draw(option_insane, &option_rect3, NULL, &option_pos3, D3DCOLOR_XRGB(255,255,255));
+					if (KEY_DOWN(VK_UP))
+					{
+						Sleep(100);
+						begin_game = OPTIONS_HARD;
+						PlaySound(sound_click);
+					}
+					if (KEY_DOWN(VK_LEFT))
+					{
+						PlaySound(sound_click);
+						begin_game = PLAY;
+						Sleep(100);
+					}
+					if (KEY_DOWN(VK_RETURN))
+					{
+						Sleep(100);
+						begin_game = OPTIONS_INSANE_OK;	
+						PlaySound(sound_enter);
+					}
+					break;
+
+				case OPTIONS_INSANE_OK:
+					d3ddev->StretchRect(start, NULL, backbuffer, NULL, D3DTEXF_NONE);
+					spriteobj->Draw(option_insanes, &option_rect3, NULL, &option_pos3, D3DCOLOR_XRGB(255,255,255));
+					if (KEY_DOWN(VK_LEFT))
+					{
+						Sleep(100);
+						begin_game = OPTIONS_INSANE;
+						PlaySound(sound_click);
+					}
+					if (KEY_DOWN(VK_RETURN))
+					{
+						Sleep(100);
+						begin_game = CONFLUX;
+						title.SetDifficulty(3);
+						PlaySound(sound_enter);
+					}
+					break;
+#pragma region CONLFUX CHOOSE TOWN
+				case CONFLUX:
+					if (hero[0].GetRace() == "Conflux")
+					{
+						// draw castle background, select arrows and highlighted select options, also include player turn realtime
+
+						d3ddev->StretchRect(rampart_option, NULL, backbuffer, NULL, D3DTEXF_NONE);
+						// FONT
+						std::ostringstream oss;
+						oss << "Player " << heroFlag + 1 << " Turn";
+						FontPrint(font, 10, 0, oss.str(), D3DCOLOR_XRGB(229,238,176));
+						spriteobj->Draw(select_town, &town_rect, NULL, &town_pos, D3DCOLOR_XRGB(255,255,255));
+
+						if (title.GetLeftArrow() == true)
+						{
+							spriteobj->Draw(select_left, &left_rect, NULL, &left_pos, D3DCOLOR_XRGB(255,255,255));
+							begin_game = NECROPOLIS;
+						}
+						if (title.GetRightArrow() == true)
+						{
+							spriteobj->Draw(select_right, &right_rect, NULL, &right_pos, D3DCOLOR_XRGB(255,255,255));
+							begin_game = RAMPART;
+						}
+						if (title.GetSelect() == true)
+							spriteobj->Draw(select_town1, &town_rect1, NULL, &town_pos1, D3DCOLOR_XRGB(255,255,255));
+
+						break;
+					}
+					else
+					{
+						d3ddev->StretchRect(conflux_option, NULL, backbuffer, NULL, D3DTEXF_NONE);
+						// FONT
+						std::ostringstream oss;
+						oss << "Player " << heroFlag + 1 << " Turn";
+						FontPrint(font, 10, 0, oss.str(), D3DCOLOR_XRGB(229,238,176));
+
+						spriteobj->Draw(select_town, &town_rect, NULL, &town_pos, D3DCOLOR_XRGB(255,255,255));
+						if (title.GetLeftArrow() == true)
+							spriteobj->Draw(select_left, &left_rect, NULL, &left_pos, D3DCOLOR_XRGB(255,255,255));
+						if (title.GetRightArrow() == true)
+							spriteobj->Draw(select_right, &right_rect, NULL, &right_pos, D3DCOLOR_XRGB(255,255,255));
+						if (title.GetSelect() == true)
+							spriteobj->Draw(select_town1, &town_rect1, NULL, &town_pos1, D3DCOLOR_XRGB(255,255,255));
+
+						if (KEY_DOWN(VK_LEFT))
+						{
+							PlaySound(sound_click);
+							title.SetLeftArrow(true);
+							title.SetRightArrow(false);
+							title.SetSelect(false);
+							Sleep(150);	
+						}
+						if (KEY_DOWN(VK_RETURN) && title.GetLeftArrow() == true)
+						{
+							Sleep(100);
+							PlaySound(sound_enter);
+							if (hero[0].GetRace() == "Conflux")
+								begin_game = RAMPART;
+							begin_game = NECROPOLIS;
+						}
+
+						if (KEY_DOWN(VK_RIGHT))
+						{
+							PlaySound(sound_click);
+							title.SetLeftArrow(false);
+							title.SetRightArrow(true);
+							title.SetSelect(false);
+							Sleep(150);
+						}
+						if (KEY_DOWN(VK_RETURN) && title.GetRightArrow() == true)
+						{
+							Sleep(100);
+							PlaySound(sound_enter);
+							if (hero[0].GetRace() == "Conflux")
+								begin_game = NECROPOLIS;
+							begin_game = RAMPART;						
+						}
+						if (KEY_DOWN(VK_DOWN))
+						{
+							Sleep(150);
+							PlaySound(sound_click);
+							title.SetLeftArrow(false);
+							title.SetRightArrow(false);
+							title.SetSelect(true);	
+						}
+						if(KEY_DOWN(VK_RETURN) && title.GetSelect() == true)
+						{
+							Sleep(100);
+							PlaySound(sound_enter);
+							hero[heroFlag].SetRace(1);
+							if(heroFlag == 0)
+							{
+								heroFlag++;
+								title.SetC(false);
+								begin_game = RAMPART;
+							}
+							else
+							{
+								heroFlag--;
+								world_map.SetInit(true);
+								currentScreen = SetScreen(world_map.NextScreen());
+							}
+							title.SetSelect(false);
+						}
+					}
+					break;
+#pragma endregion
+#pragma region RAMPART CHOOSE TOWN
+				case RAMPART:
+					if (hero[0].GetRace() == "Rampart")
+					{
+						d3ddev->StretchRect(necropolis_option, NULL, backbuffer, NULL, D3DTEXF_NONE);
+						// FONT
+						std::ostringstream oss;
+						oss << "Player " << heroFlag + 1 << " Turn";
+						FontPrint(font, 10, 0, oss.str(), D3DCOLOR_XRGB(229,238,176));
+						spriteobj->Draw(select_town, &town_rect, NULL, &town_pos, D3DCOLOR_XRGB(255,255,255));
+						if (title.GetLeftArrow() == true)
+						{
+							spriteobj->Draw(select_left, &left_rect, NULL, &left_pos, D3DCOLOR_XRGB(255,255,255));
+							begin_game = CONFLUX;
+						}
+						if (title.GetRightArrow() == true)
+						{
+							spriteobj->Draw(select_right, &right_rect, NULL, &right_pos, D3DCOLOR_XRGB(255,255,255));
+							begin_game = NECROPOLIS;
+						}
+						if (title.GetSelect() == true)
+							spriteobj->Draw(select_town1, &town_rect1, NULL, &town_pos1, D3DCOLOR_XRGB(255,255,255));
+
+						break;
+					}
+					else
+					{
+						d3ddev->StretchRect(rampart_option, NULL, backbuffer, NULL, D3DTEXF_NONE);
+						// FONT
+						std::ostringstream oss;
+						oss << "Player " << heroFlag + 1 << " Turn";
+						FontPrint(font, 10, 0, oss.str(), D3DCOLOR_XRGB(229,238,176));
+
+						spriteobj->Draw(select_town, &town_rect, NULL, &town_pos, D3DCOLOR_XRGB(255,255,255));
+						if (title.GetLeftArrow() == true)
+							spriteobj->Draw(select_left, &left_rect, NULL, &left_pos, D3DCOLOR_XRGB(255,255,255));
+						if (title.GetRightArrow() == true)
+							spriteobj->Draw(select_right, &right_rect, NULL, &right_pos, D3DCOLOR_XRGB(255,255,255));
+						if (title.GetSelect() == true)
+							spriteobj->Draw(select_town1, &town_rect1, NULL, &town_pos1, D3DCOLOR_XRGB(255,255,255));
+
+						if (KEY_DOWN(VK_LEFT))
+						{
+							title.SetLeftArrow(true);
+							title.SetRightArrow(false);
+							title.SetSelect(false);
+							Sleep(150);
+							PlaySound(sound_click);
+						}
+
+						if (KEY_DOWN(VK_RETURN) && title.GetLeftArrow() == true)
+						{
+							Sleep(100);
+							PlaySound(sound_enter);
+							if (hero[0].GetRace() == "Rampart")
+								begin_game = NECROPOLIS;
+							begin_game = CONFLUX;
+						}
+
+						if (KEY_DOWN(VK_RIGHT))
+						{
+							PlaySound(sound_click);
+							title.SetLeftArrow(false);
+							title.SetRightArrow(true);
+							title.SetSelect(false);
+							Sleep(150);
+						}
+						if (KEY_DOWN(VK_RETURN) && title.GetRightArrow() == true)
+						{
+							Sleep(100);
+							PlaySound(sound_enter);
+							if (hero[0].GetRace() == "Rampart")
+								begin_game = CONFLUX;
+							begin_game = NECROPOLIS;
+						}
+
+						if (KEY_DOWN(VK_DOWN))
+						{
+							PlaySound(sound_click);
+							Sleep(150);
+							title.SetLeftArrow(false);
+							title.SetRightArrow(false);
+							title.SetSelect(true);
+						}
+						if(KEY_DOWN(VK_RETURN) && title.GetSelect() == true)
+						{
+							Sleep(100);
+							PlaySound(sound_enter);
+							hero[heroFlag].SetRace(3);
+							if(heroFlag == 0)
+							{
+								heroFlag++;
+								title.SetR(false);
+								begin_game = CONFLUX;
+							}
+							else
+							{
+								heroFlag--;
+								world_map.SetInit(true);
+								currentScreen = SetScreen(world_map.NextScreen());
+							}
+							title.SetSelect(false);
+						}
+					}
+					break;
+#pragma endregion
+#pragma region CHOOSE NECROPOLIS TOWN
+				case NECROPOLIS:
+					if (hero[0].GetRace() == "Necropolis")
+					{
+						d3ddev->StretchRect(conflux_option, NULL, backbuffer, NULL, D3DTEXF_NONE);
+						// FONT
+						std::ostringstream oss;
+						oss << "Player " << heroFlag + 1 << " Turn";
+						FontPrint(font, 10, 0, oss.str(), D3DCOLOR_XRGB(229,238,176));
+						spriteobj->Draw(select_town, &town_rect, NULL, &town_pos, D3DCOLOR_XRGB(255,255,255));
+						if (title.GetLeftArrow() == true)
+						{
+							spriteobj->Draw(select_left, &left_rect, NULL, &left_pos, D3DCOLOR_XRGB(255,255,255));
+							begin_game = RAMPART;
+						}
+						if (title.GetRightArrow() == true)
+						{
+							spriteobj->Draw(select_right, &right_rect, NULL, &right_pos, D3DCOLOR_XRGB(255,255,255));
+							begin_game = CONFLUX;
+						}
+						if (title.GetSelect() == true)
+							spriteobj->Draw(select_town1, &town_rect1, NULL, &town_pos1, D3DCOLOR_XRGB(255,255,255));
+
+						break;
+					}
+					else
+					{
+						d3ddev->StretchRect(necropolis_option, NULL, backbuffer, NULL, D3DTEXF_NONE);
+						// FONT
+						std::ostringstream oss;
+						oss << "Player " << heroFlag + 1 << " Turn";
+						FontPrint(font, 10, 0, oss.str(), D3DCOLOR_XRGB(229,238,176));
+
+						spriteobj->Draw(select_town, &town_rect, NULL, &town_pos, D3DCOLOR_XRGB(255,255,255));
+						if (title.GetLeftArrow() == true)
+							spriteobj->Draw(select_left, &left_rect, NULL, &left_pos, D3DCOLOR_XRGB(255,255,255));
+						if (title.GetRightArrow() == true)
+							spriteobj->Draw(select_right, &right_rect, NULL, &right_pos, D3DCOLOR_XRGB(255,255,255));
+						if (title.GetSelect() == true)
+							spriteobj->Draw(select_town1, &town_rect1, NULL, &town_pos1, D3DCOLOR_XRGB(255,255,255));
+
+						if (KEY_DOWN(VK_LEFT))
+						{
+							PlaySound(sound_click);
+							title.SetLeftArrow(true);
+							title.SetRightArrow(false);
+							title.SetSelect(false);
+							Sleep(150);
+							
+						}
+						if (KEY_DOWN(VK_RETURN) && title.GetLeftArrow() == true)
+						{
+							Sleep(100);
+							PlaySound(sound_enter);
+							if (hero[0].GetRace() == "Necropolis")
+								begin_game = CONFLUX;
+							begin_game = RAMPART;
+						}
+						if (KEY_DOWN(VK_RIGHT))
+						{
+							Sleep(100);
+							PlaySound(sound_click);
+							title.SetLeftArrow(false);
+							title.SetRightArrow(true);
+							title.SetSelect(false);
+							Sleep(150);
+						}
+						if (KEY_DOWN(VK_RETURN) && title.GetRightArrow() == true)
+						{
+							Sleep(100);
+							PlaySound(sound_enter);
+							if (hero[0].GetRace() == "Necropolis")
+								begin_game = RAMPART;
+							begin_game = CONFLUX;
+						}
+
+						if (KEY_DOWN(VK_DOWN))
+						{
+							Sleep(150);
+							PlaySound(sound_click);
+							title.SetLeftArrow(false);
+							title.SetRightArrow(false);
+							title.SetSelect(true);
+						}
+						if(KEY_DOWN(VK_RETURN) && title.GetSelect() == true)
+						{
+							Sleep(100);
+							hero[heroFlag].SetRace(2);
+							PlaySound(sound_enter);
+							if(heroFlag == 0)
+							{
+								heroFlag++;
+								title.SetN(false);
+								begin_game = RAMPART;
+							}
+							else
+							{
+								heroFlag--;
+								world_map.SetInit(true);
+								currentScreen = SetScreen(world_map.NextScreen());
+							}
+							title.SetSelect(false);
+						}
+					}
+					break;				
+#pragma endregion
+
+				case EXIT:
+					d3ddev->StretchRect(start, NULL, backbuffer, NULL, D3DTEXF_NONE);
+					spriteobj->Draw(select_play, &button_rect, NULL, &button_pos2, D3DCOLOR_XRGB(255,255,255));
+					if (KEY_DOWN(VK_UP))	
+					{
+						Sleep(100);
+						PlaySound(sound_click);
+						begin_game = HOW_TO_PLAY;
+					}
+					if (KEY_DOWN(VK_RETURN))
+					{
+						Sleep(100);
+						PlaySound(sound_enter);
+						gameover = true;
+					}
+					break;
+				}
+
+				spriteobj->End();
+				break;
+#pragma endregion
+				spriteobj->End();
+				
+				break;
+
+			case worldMapScreen:	//run world map sequence
+				
+#pragma region WORLD_MAP
+				sound_menu->Stop();
+				sound_map->Play(0, DSBPLAY_LOOPING);
+				spriteobj->Begin(D3DXSPRITE_ALPHABLEND);
+				//if(world_map.GetInit())		//initialize worldMap
+				//{
+				heroFlag = 0;
+
+				// Setting Source Rect for world map to overlay heroes position
+				if((hero[heroFlag].GetX() * 32) - 384 >= 0)
+					mapCoords.left = (hero[heroFlag].GetX() * 32) - 384;
+				else
+					mapCoords.left = 0;
+				if((hero[heroFlag].GetY() * 32) - 288 >= 0)
+					mapCoords.top = (hero[heroFlag].GetY() * 32) - 288;
+				else
+					mapCoords.top = 0;
+				if((hero[heroFlag].GetX() * 32) + 384 <= 2304)
+					mapCoords.right = (hero[heroFlag].GetX() * 32) + 384;
+				else
+					mapCoords.right = 2304;
+				if((hero[heroFlag].GetY() * 32) + 288 <= 2304)
+					mapCoords.bottom = (hero[heroFlag].GetY() * 32) + 288;
+				else
+					mapCoords.bottom = 2304;
+
+				world_map.SetMapCoords(mapCoords);
+
+				/*world_map.SetInit(false);
+				}*/
+
+				///////////////////////////////////////////////////
+				/*mapCoords.left = (hero[heroFlag].GetX() * 32) - 384;
+				mapCoords.top = (hero[heroFlag].GetY() * 32) - 288;
+				mapCoords.right = (hero[heroFlag].GetX() * 32) + 384;
+				mapCoords.bottom = (hero[heroFlag].GetY() * 32) + 288;*/
+				////////////////////////////////////////////////////
+
+				if(KEY_DOWN(0x54))//center map on hero using 'T'
+				{
+					mapCoords.left = (hero[heroFlag].GetX() * 32) - 384;		//set to hero position - x-axis
+					if(mapCoords.left <= 0)
+					{
+						mapCoords.left = 0;
+						mapCoords.right	= 768;
+					}
+					mapCoords.top = (hero[heroFlag].GetY() * 32) - 288;				//set to hero position - y-axis
+					if(mapCoords.top >= 0)
+					{
+						mapCoords.top = 0;
+						mapCoords.bottom = 576;
+					}
+					mapCoords.right = (hero[heroFlag].GetX() * 32) + 384;			//set to hero position + x-axis
+					if(mapCoords.right >= 2304)
+					{
+						mapCoords.right = 2304;
+						mapCoords.left = 1536;
+					}
+					mapCoords.bottom = (hero[heroFlag].GetY() * 32) + 288;			//set to hero position + y-axis
+					if(mapCoords.bottom >= 2304)
+					{
+						mapCoords.bottom = 2304;
+						mapCoords.top = 1728;
+					}
+				}
+
+				// TEMPORARY KEY TO START BATTLE FROM WORLD MAP
+				if (KEY_DOWN(0x41)) // A press
+				{
+					d3ddev->StretchRect(worldMap_image, &worldMapSource, backbuffer, &worldMapDest, D3DTEXF_NONE);
+					currentScreen = SetScreen(2);
+					initializeBattle = true;
+					break;
+				}
+
+				// GO TO CASTLE FUNCTION HOT KEY
+				if (KEY_DOWN(0x43)) // C Press
+				{
+					Sleep(100);
+					sound_menu->Stop();
+					d3ddev->StretchRect(worldMap_image, &worldMapSource, backbuffer, &worldMapDest, D3DTEXF_NONE);
+					currentScreen = SetScreen(3);
+					break;
+				}
+
+
+				//draw background
+				d3ddev->StretchRect(worldMap_image, &worldMapSource, backbuffer, &worldMapDest, D3DTEXF_NONE);		//(IDirect3DSurface9* pSourceSurface,RECT* pSourceRect,IDirect3DSurface9* pDestSurface,RECT* pDestRect,D3DTEXTUREFILTERTYPE Filter)
+				//draw heros
+				//spriteobj->Draw(hero1_image, &hero_Source[heroFlag], NULL, &hero1_pos, D3DCOLOR_XRGB(255,255,255));
+
+				
+
+				world_map.Scroll();	//&mapLeft, &mapTop, &mapRight, &mapBottom
+
+				spriteobj->Draw(WM_HUD_image, &WM_HUD_rect, NULL, &HUD_POS, D3DCOLOR_XRGB(255,255,255));
+
+				currentScreen = SetScreen(world_map.NextScreen());		//chooses which screen to bring up next
+				if(currentScreen == battleScreen)
+					initializeBattle = true;
+				spriteobj->End();
+
+				break;
+
+#pragma endregion
+			case battleScreen:		//run battle sequence
+#pragma region BATTLE
+				sound_map->Stop();
+				spriteobj->Begin(D3DXSPRITE_ALPHABLEND);
+				if(initializeBattle)
+				{
+					if(battleCreatures.empty())
+					{
+						//temp values for hero class
+						//	hero[0].SetRace(1);	//Conflux
+						//hero[1].SetRace(2);	//Necropolis
+
+						//if(encounter other player)
+						battleCreatures = LoadCreatureVect(battleCreatures, hero[0], hero[1]);
+						//if(encounter AI)
+						//LoadCreatureVect(battleCreatures, hero[0], AI[world_map.encounteredUnit()]);
+					}
+
+					hud.LoadTurnQueue(battleCreatures);		//load turn queue function, pass in vector of creatures in battle
+
+					for(int i = 0; i < 5; i++)		//Initialize first 5 portraits each battle sequence
+					{
+						nextPortrait.unit = battleCreatures[hud.GetTurnQueue().front()].GetUnit();
+						nextPortrait.race = battleCreatures[hud.GetTurnQueue().front()].GetRace();
+						nextPortrait.vectPos = hud.GetTurnQueue().front();
+						nextPortrait.SetSource();
+
+						portraitA = portraitB;		//loads the portraits data in order from front of turn queue
+						portraitB = portraitC;
+						portraitC = portraitD;
+						portraitD = portraitE;
+						portraitE = nextPortrait;
+
+						hud.PopTurnQueue();		//deplete turn queue 
+					}
+
+					initializeBattle = false;
+				}
+
+#pragma region GRASS BATTLEGROUND
+				if(battleSequence == 1)
+				{
+					sound_map->Stop();
+					sound_battle1->Play(0, DSBPLAY_LOOPING);
+					d3ddev->StretchRect(battle_image1, NULL, backbuffer, NULL, D3DTEXF_NONE);
+
+#pragma region GRASS OBJECTS DRAW
+					D3DXVECTOR3 position1 ((float)grass1.x, (float)grass1.y, 0);
+					D3DXVECTOR3 position2 ((float)grass2.x, (float)grass2.y, 0);
+					D3DXVECTOR3 position3 ((float)grass3.x, (float)grass3.y, 0);
+
+					int unitTurn = 0;
+#pragma endregion
+					obj_Rect1.left = 0;
+					obj_Rect1.top = 0;
+					obj_Rect1.right = grass1.width;
+					obj_Rect1.bottom = grass1.height;
+
+					obj_Rect2.left = 0;
+					obj_Rect2.top = 0;
+					obj_Rect2.right = grass2.width;
+					obj_Rect2.bottom = grass2.height;
+
+					obj_Rect3.left = 0;
+					obj_Rect3.top = 0;
+					obj_Rect3.right = grass3.width;
+					obj_Rect3.bottom = grass3.height;
+
+					spriteobj->Draw(map1Obj1, &obj_Rect1, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+					spriteobj->Draw(map1Obj2, &obj_Rect2, NULL, &position2, D3DCOLOR_XRGB(255,255,255));
+					spriteobj->Draw(map1Obj3, &obj_Rect3, NULL, &position3, D3DCOLOR_XRGB(255,255,255));
+				}
+#pragma endregion
+#pragma region DIRT BATTLEGROUND
+
+				if(battleSequence == 2)
+				{
+					sound_map->Stop();
+					sound_battle2->Play(0, DSBPLAY_LOOPING);
+					d3ddev->StretchRect(battle_image2, NULL, backbuffer, NULL, D3DTEXF_NONE);
+
+#pragma region DIRT OBJECTS DRAW
+					D3DXVECTOR3 position1 ((float)dirt1.x, (float)dirt1.y, 0);
+					D3DXVECTOR3 position2 ((float)dirt2.x, (float)dirt2.y, 0);
+					D3DXVECTOR3 position3 ((float)dirt3.x, (float)dirt3.y, 0);
+
+					obj_Rect1.left = 0;
+					obj_Rect1.top = 0;
+					obj_Rect1.right = dirt1.width;
+					obj_Rect1.bottom = dirt1.height;
+
+					obj_Rect2.left = 0;
+					obj_Rect2.top = 0;
+					obj_Rect2.right = dirt2.width;
+					obj_Rect2.bottom = dirt2.height;
+
+					obj_Rect3.left = 0;
+					obj_Rect3.top = 0;
+					obj_Rect3.right = dirt3.width;
+					obj_Rect3.bottom = dirt3.height;
+
+					spriteobj->Draw(map2Obj1, &obj_Rect1, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+					spriteobj->Draw(map2Obj2, &obj_Rect2, NULL, &position2, D3DCOLOR_XRGB(255,255,255));
+					spriteobj->Draw(map2Obj3, &obj_Rect3, NULL, &position3, D3DCOLOR_XRGB(255,255,255));
+
+#pragma endregion
+				}
+#pragma endregion
+#pragma region SAND BATTLEGROUND
+
+				if(battleSequence == 3)
+				{
+					sound_map->Stop();
+					sound_battle3->Play(0, DSBPLAY_LOOPING);
+					d3ddev->StretchRect(battle_image3, NULL, backbuffer, NULL, D3DTEXF_NONE);
+
+#pragma region SAND RECTS
+					D3DXVECTOR3 position1 ((float)sand1.x, (float)sand1.y, 0);
+					D3DXVECTOR3 position2 ((float)sand2.x, (float)sand2.y, 0);
+
+					obj_Rect1.left = 0;
+					obj_Rect1.top = 0;
+					obj_Rect1.right = sand1.width;
+					obj_Rect1.bottom = sand1.height;
+
+					obj_Rect2.left = 0;
+					obj_Rect2.top = 0;
+					obj_Rect2.right = sand2.width;
+					obj_Rect2.bottom = sand2.height;
+
+#pragma endregion
+
+					spriteobj->Draw(map3Obj1, &obj_Rect1, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+					spriteobj->Draw(map3Obj2, &obj_Rect2, NULL, &position2, D3DCOLOR_XRGB(255,255,255));
+				}
+#pragma endregion
+#pragma region LAVA BATTLEGROUND
+				if(battleSequence == 4)
+				{
+					sound_map->Stop();
+					sound_battle4->Play(0, DSBPLAY_LOOPING);
+					d3ddev->StretchRect(battle_image4, NULL, backbuffer, NULL, D3DTEXF_NONE);
+
+#pragma region LAVA RECTS
+					D3DXVECTOR3 position1 ((float)lava1.x, (float)lava1.y, 0);
+					D3DXVECTOR3 position2 ((float)lava2.x, (float)lava2.y, 0);
+
+					obj_Rect1.left = 0;
+					obj_Rect1.top = 0;
+					obj_Rect1.right = lava1.width;
+					obj_Rect1.bottom = lava1.height;
+
+					obj_Rect2.left = 0;
+					obj_Rect2.top = 0;
+					obj_Rect2.right = lava2.width;
+					obj_Rect2.bottom = lava2.height;
+
+#pragma endregion
+
+					spriteobj->Draw(map4Obj1, &obj_Rect1, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+					spriteobj->Draw(map4Obj2, &obj_Rect2, NULL, &position2, D3DCOLOR_XRGB(255,255,255));
+				}
+#pragma endregion	
+
+				if(hud.GetTurnQueue().size() < 5)		//checks if turn queue is depleted before end of battle
+					hud.LoadTurnQueue(battleCreatures);		//load turn queue function, pass in vector of creatures in battle
+
+				// GRID PLACEMENT FOR RANGE OF ATTACK DISTANCE
+				if (!STAY_POSITION)
+				{
+					if (battleCreatures[portraitA.vectPos].GetX() == 0)
+						green.x = 0; // Sprite POS is at 0					
+					else
+						green.x = battleCreatures[portraitA.vectPos].GetDestX() * 50;
+					if (battleCreatures[portraitA.vectPos].GetY() == 0)
+						green.y = 100;
+					else
+						green.y = battleCreatures[portraitA.vectPos].GetDestY() * 50;
+
+					//remainingMove = battleCreatures[portraitA.vectPos].GetRange();
+					STAY_POSITION = true;
+				}
+				//if (heroFlag == 1)
+				//{
+				//	if (battleCreatures[portraitA.vectPos].GetX() == 0)
+				//		green.x = 700;
+				//	else
+				//		green.x = battleCreatures[portraitA.vectPos].GetX() * 50 + 700;
+				//	if (battleCreatures[portraitA.vectPos].GetY() == 0)
+				//		green.y = 100;
+				//	else
+				//		green.y = battleCreatures[portraitA.vectPos].GetY() * 50;
+				//}
+				// DRAW CREATURE PORTRAITS
+				spriteobj->Draw(Creature_portraits, &Portrait_A_rect, NULL, &PortraitA_POS, D3DCOLOR_XRGB(255,255,255));
+				spriteobj->Draw(Creature_portraits, &Portrait_B_rect, NULL, &PortraitB_POS, D3DCOLOR_XRGB(255,255,255));
+				spriteobj->Draw(Creature_portraits, &Portrait_C_rect, NULL, &PortraitC_POS, D3DCOLOR_XRGB(255,255,255));
+				spriteobj->Draw(Creature_portraits, &Portrait_D_rect, NULL, &PortraitD_POS, D3DCOLOR_XRGB(255,255,255));
+				spriteobj->Draw(Creature_portraits, &Portrait_E_rect, NULL, &PortraitE_POS, D3DCOLOR_XRGB(255,255,255));
+				spriteobj->Draw(Creature_portraits, &Portrait_F_rect, NULL, &PortraitF_POS, D3DCOLOR_XRGB(255,255,255));
+
+
+				
+				GRID_PLACEMENT(green, battleCreatures, portraitA.vectPos);		/*unit[unitTurn]*/
+
+				
+
+				// SURRENDER
+				if (KEY_DOWN(VK_F1))
+				{
+					//SURRENDER
+					currentScreen = SetScreen(creditsScreen);
+					//gameover = true;
+				}
+
+				// PRESS E TO END TURN OF UNIT
+				if (KEY_DOWN(0x45)) 
+				{
+					endTurn = true;
+					return;
+				}
+
+				//end turn
+				if (endTurn)
+				{
+					nextPortrait.unit = battleCreatures[hud.GetTurnQueue().front()].GetUnit();
+					nextPortrait.race = battleCreatures[hud.GetTurnQueue().front()].GetRace();
+					nextPortrait.vectPos = hud.GetTurnQueue().front();
+					nextPortrait.SetSource();
+
+					portraitA = portraitB;		//loads the portraits data in order from front of turn queue
+					portraitB = portraitC;
+					portraitC = portraitD;
+					portraitD = portraitE;
+					portraitE = nextPortrait;
+
+					hud.PopTurnQueue();
+
+					STAY_POSITION = false;
+					endTurn = false;
+				}
+
+				//if(battle_over)		//empty creature vector and turn queue
+				//{
+				//	while(!battleCreatures.empty())
+				//		battleCreatures.pop_back();
+				//	hud.EmptyTurnQueue();
+				//}
+
+				//currentScreen = SetScreen(battle.NextScreen());
+				spriteobj->Draw(BG_HUD_image, &BG_HUD_rect, NULL, &BG_HUD_POS, D3DCOLOR_XRGB(255,255,255));	// last thing to draw!!!
+				spriteobj->End();
+				break;
+#pragma endregion
+			case castleScreen:
+#pragma region CASTLE
+				//run castle screen
+				sound_map->Stop();
+				//sound_menu->Stop();
+				sound_castle1->Play(0, DSBPLAY_LOOPING);
+				if (hero[heroFlag].GetRace() == "Conflux")	
+				{
+					d3ddev->StretchRect(castle_image1, NULL, backbuffer, NULL, D3DTEXF_NONE);
+					sound_castle1->Play(0, DSBPLAY_LOOPING);
+				}
+				else if (hero[heroFlag].GetRace() == "Necropolis")
+				{
+					d3ddev->StretchRect(castle_image2, NULL, backbuffer, NULL, D3DTEXF_NONE);
+					sound_castle3->Play(0, DSBPLAY_LOOPING);
+				}
+				else
+				{
+					d3ddev->StretchRect(castle_image3, NULL, backbuffer, NULL, D3DTEXF_NONE);
+					sound_castle2->Play(0, DSBPLAY_LOOPING);
+				}
+				if (KEY_DOWN(0x43)) // PRESS C
+				{
+					Sleep(150);
+					sound_castle2->Stop();
+					sound_castle3->Stop();
+					sound_castle1->Stop();
+					currentScreen = SetScreen(worldMapScreen);
+				}
+				break;
+#pragma endregion
+			case creditsScreen:
+#pragma region CREDITS
+				// run credits
+				//currentScreen = gameOverScreen;
+				sound_battle1->Stop();
+				sound_battle2->Stop();
+				sound_battle3->Stop();
+				sound_battle4->Stop();
+				sound_gameover->Play(0, DSBPLAY_LOOPING);
+				d3ddev->StretchRect(defeat, NULL, backbuffer, NULL, D3DTEXF_NONE);
+				if (KEY_DOWN(VK_RETURN))
+				{
+					Sleep(100);
+					d3ddev->StretchRect(credits, NULL, backbuffer, NULL, D3DTEXF_NONE);
+					currentScreen = SetScreen(creditsScreenShow);
+					sound_gameover->Stop();
+				}
+				break;
+#pragma endregion
+			case creditsScreenShow:
+				sound_credits->Play(0, DSBPLAY_LOOPING);
+				spriteobj->Begin(D3DXSPRITE_ALPHABLEND);
+				d3ddev->StretchRect(credits, NULL, backbuffer, NULL, D3DTEXF_NONE);
+
+
+				if(credit.x <= SCREENW && left_animate)
+				{
+					credit.x += 8;
+					if (credit.x + credit.width >= SCREENW)
+					{
+						left_animate = false;
+						//credit.x = -96;
+						//credit.x = SCREENW - catLeft.width;
+					}
+				}
+
+				if(credit.x >= 0 && !left_animate)
+				{
+					credit.x -= 8;
+					if (credit.x <= 0)
+					{
+						left_animate = true;
+						/*catLeft.x = SCREENW;
+						catRight.x = 0;	*/
+					}
+				}
+
+				if (++credit.frame > credit.delay)
+				{
+					//reset counter
+					credit.frame = 0;
+
+					//animate the sprite
+					if (++credit.curframe > credit.endframe)
+						credit.curframe = 0;
+				}
+
+
+				if (d3ddev->BeginScene())
+				{
+					spriteobj->Draw(credit_image, &credit_rect, NULL, &credit_POS, D3DCOLOR_XRGB(255,255,255));
+					spriteobj->End();
+				}
+					break;
+			case gameOverScreen:
+#pragma region GAMEOVER
+				//output "goodbye message"....victory/defeat 
+				//gameover = true;
+
+				//or//
+
+				//return to title screen??
+				//reset all assets and values to "0" state
+				//currentScreen = titleScreen;
+
+				break;
+#pragma endregion
+			}//end switch
+			
+			d3ddev->EndScene();		//stop rendering
+			d3ddev->Present(NULL, NULL, NULL, NULL);
+		}//end BeginScene
+
+	}
+
+	
+	//exit with escape key or controller Back button
+	if (KEY_DOWN(VK_ESCAPE))
+		gameover = true;
+
+	p2.x = Mouse_X();
+	p2.y = Mouse_Y();
+	if (WM_LBUTTONDOWN)
+	{
+		if (PtInRect(&OptionsEasy, p2))
+		{				
+			begin_game = OPTIONS_EASY;				
+		}
+		if (PtInRect(&OptionsHard, p2))
+		{				
+			begin_game = OPTIONS_HARD;				
+		}
+		if (PtInRect(&OptionsInsane, p2))
+		{				
+			begin_game = OPTIONS_INSANE;			
+		}
+		if (PtInRect(&OptionsOK, p2))
+		{
+			begin_game = START_GAME;				
+		}
+		if (PtInRect(&HowToPlay, p2))
+		{
+			//MessageBox(NULL,"How To Play clicked","Menu",MB_OK);
+		}
+	}
+	//currentScreen = SetScreen(title.NextScreen());
+	
+}
+
+void Game_End()		//free memory and shut down
+{
+	
+	if(map2Obj1 != NULL)
+		map2Obj1->Release();
+	if(map2Obj2 != NULL)
+		map2Obj2->Release();
+	if(map2Obj3 != NULL)
+		map2Obj3->Release();
+	if(map3Obj1 != NULL)
+		map3Obj1->Release();
+	if(map3Obj2 != NULL)
+		map3Obj2->Release();
+	if(map4Obj1 != NULL)
+		map4Obj1->Release();
+	if(map4Obj2 != NULL)
+		map4Obj2->Release();
+	if(select_play != NULL)
+		select_play->Release();
+	if(battle_image1 != NULL)
+		battle_image1->Release();
+	if(battle_image2 != NULL)
+		battle_image2->Release();
+	if(battle_image3 != NULL)
+		battle_image3->Release();
+	if(battle_image4 != NULL)
+		battle_image4->Release();
+	if(BG_HUD_image != NULL)
+		BG_HUD_image->Release();
+
+	DirectSound_Shutdown();
+	DirectInput_Shutdown();
+	Direct3D_Shutdown();
+}
+
+SCREEN SetScreen(int returnValue)
+{
+	if (returnValue == 0)
+		return titleScreen;
+	else if(returnValue == 1)
+		return worldMapScreen;
+	else if(returnValue == 2)
+		return battleScreen;
+	else if(returnValue == 3)
+		return castleScreen;
+	else if(returnValue == 4)
+		return creditsScreen;
+	else if(returnValue == 5)
+		return creditsScreenShow;
+	else
+		return gameOverScreen;
+}
+
+vector<UNITS> LoadCreatureVect(vector<UNITS> cVect, HERO player, HERO opponent)
+{
+	HERO p[2];
+	p[0] = player;
+	p[1] = opponent;
+
+	for(int q = 0; q < 4; q++)
+	{
+
+		if(p[0].GetUnitStack(q))		//returns false if stack is empty
+		{
+#pragma region Player 1 Turn
+			if(p[0].GetRace() == "Conflux")
+			{
+				switch(q)
+				{
+				case 0:
+					cVect.push_back(pixie);
+					break;
+				case 1:
+					cVect.push_back(cyclops);
+					break;
+				case 2:
+					cVect.push_back(nagaQueen);
+					break;
+				case 3:
+					cVect.push_back(azureDragon);
+					break;
+				};
+			}
+			else if(p[0].GetRace() == "Necropolis")
+			{
+				switch(q)
+				{
+				case 0:
+					cVect.push_back(skeleton);
+					break;
+				case 1:
+					cVect.push_back(powerLich);
+					break;
+				case 2:
+					cVect.push_back(wraith);
+					break;
+				case 3:
+					cVect.push_back(boneDragon);
+					break;
+				};
+			}
+			else if(p[0].GetRace() == "Rampart")
+			{
+				switch(q)
+				{
+				case 0:
+					cVect.push_back(centaur);
+					break;
+				case 1:
+					cVect.push_back(elf);
+					break;
+				case 2:
+					cVect.push_back(unicorn);
+					break;
+				case 3:
+					cVect.push_back(goldDragon);
+					break;
+				};
+			}
+			else if(p[0].GetRace() == "AI")
+			{
+				switch(q)
+				{
+				case 0:
+					cVect.push_back(zombie);
+					break;
+				case 1:
+					cVect.push_back(cerberus);
+					break;
+				case 2:
+					cVect.push_back(golem);
+					break;
+				case 3:
+					cVect.push_back(evilEye);
+					break;
+				};
+			}
+#pragma endregion
+		}
+		if(p[1].GetUnitStack(q))		//returns false if stack is empty
+		{
+#pragma region Player 2 Turn
+			if(p[1].GetRace() == "Conflux")
+			{
+				switch(q)
+				{
+				case 0:
+					cVect.push_back(pixieR);
+					break;
+				case 1:
+					cVect.push_back(cyclopsR);
+					break;
+				case 2:
+					cVect.push_back(nagaQueenR);
+					break;
+				case 3:
+					cVect.push_back(azureDragonR);
+					break;
+				};
+			}
+			else if(p[1].GetRace() == "Necropolis")
+			{
+				switch(q)
+				{
+				case 0:
+					cVect.push_back(skeletonR);
+					break;
+				case 1:
+					cVect.push_back(powerLichR);
+					break;
+				case 2:
+					cVect.push_back(wraithR);
+					break;
+				case 3:
+					cVect.push_back(boneDragonR);
+					break;
+				};
+			}
+			else if(p[1].GetRace() == "Rampart")
+			{
+				switch(q)
+				{
+				case 0:
+					cVect.push_back(centaurR);
+					break;
+				case 1:
+					cVect.push_back(elfR);
+					break;
+				case 2:
+					cVect.push_back(unicornR);
+					break;
+				case 3:
+					cVect.push_back(goldDragonR);
+					break;
+				};
+			}
+			else if(p[1].GetRace() == "AI")
+			{
+				switch(q)
+				{
+				case 0:
+					cVect.push_back(zombieR);
+					break;
+				case 1:
+					cVect.push_back(cerberusR);
+					break;
+				case 2:
+					cVect.push_back(golemR);
+					break;
+				case 3:
+					cVect.push_back(evilEyeR);
+					break;
+				};
+			}
+#pragma endregion
+		}
+
+	}
+	return cVect;
+}
+DIRECTION checkDir(DIRECTION &direction)
+{
+	switch(direction.dir)
+	{
+	case E:
+		direction.x = 4;
+		direction.y = 0;
+		break;
+	case NE:
+		direction.x = 4;
+		direction.y = -4;
+		break;
+	case N:
+		direction.x = 0;
+		direction.y = -4;
+		break;
+	case NW:
+		direction.x = -4;
+		direction.y = -4;
+		break;
+	case W:
+		direction.x = -4;
+		direction.y = 0;
+		break;
+	case SW:
+		direction.x = -4;
+		direction.y = 4;
+		break;
+	case S:
+		direction.x = 0;
+		direction.y = 4;
+		break;
+	case SE:
+		direction.x = 4;
+		direction.y = 4;
+		break;
+	}
+	return direction;
+}
+
+// Place grid on battlescreen map, includes collision objects on Map
+void GRID_PLACEMENT(SPRITE sprite, vector<UNITS> &unit, int pos)
+{
+	//int unitTurn = 0;
+	bool canMove = false;
+	RECT move_Rect;
+
+	move_Rect.left = 0;
+	move_Rect.top = 0;
+	move_Rect.right = green.width;
+	move_Rect.bottom = green.height;
+
+	int tempRange = unit[pos].GetRange();
+
+	int remainingRange = unit[pos].GetRange();
+
+#pragma region DRAW GRID
+	// 1+
+	if (tempRange >= 0)
+	{
+		D3DXVECTOR3 position ((float)green.x + (tempRange * 50), (float)green.y, 0);		// X-AXIS
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x - (tempRange * 50), (float)green.y, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRange--;
+	}
+	// 2+
+	if (tempRange >= 0)
+	{
+		D3DXVECTOR3 position ((float)green.x + (tempRange * 50), (float)green.y, 0);		// X-AXIS
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x - (tempRange * 50), (float)green.y, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRange--;
+	}
+	// 3+
+	if (tempRange >= 0)
+	{
+		D3DXVECTOR3 position ((float)green.x + (tempRange * 50), (float)green.y, 0);		// X-AXIS
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x - (tempRange * 50), (float)green.y, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRange--;
+	}
+	// 4+
+	if (tempRange >= 0)
+	{
+		D3DXVECTOR3 position ((float)green.x + (tempRange * 50), (float)green.y, 0);		// X-AXIS
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x - (tempRange * 50), (float)green.y, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRange--;
+	}
+	// 5+
+	if (tempRange >= 0)
+	{
+		D3DXVECTOR3 position ((float)green.x + (tempRange * 50), (float)green.y, 0);		// X-AXIS
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x - (tempRange * 50), (float)green.y, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRange--;
+	}
+	// 6+
+	if (tempRange >= 0)
+	{
+		D3DXVECTOR3 position ((float)green.x + (tempRange * 50), (float)green.y, 0);		// X-AXIS
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x - (tempRange * 50), (float)green.y, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRange--;
+	}
+	if (tempRange >= 0)
+	{
+		D3DXVECTOR3 position ((float)green.x + (tempRange * 50), (float)green.y, 0);		// X-AXIS
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x - (tempRange * 50), (float)green.y, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRange--;
+	}
+
+	// RESET TEMPRANGE
+	int tempRangeX = unit[pos].GetRange() - 1;
+	//int tempRangeY = unit[unitTurn].range - 1;
+
+	// x - 1, y + 1
+	if (tempRangeX >= 0 && green.y + 50 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 50 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 50 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 50 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 50 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 50 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+	}
+
+
+	// RESET tempRangeX
+	tempRangeX = unit[pos].GetRange() - 2;
+	if (tempRangeX >= 0 && green.y + 100 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 100 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 100 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 100 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 100 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+
+	//RESET
+	tempRangeX = unit[pos].GetRange() - 3;
+
+	if (tempRangeX >= 0 && green.y + 150 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 150, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 150, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 150 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 150, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 150, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 150 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 150, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 150, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 150 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 150, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+
+	tempRangeX = unit[pos].GetRange() - 4;
+
+	if (tempRangeX >= 0 && green.y + 200 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 200, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 200, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 200 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 200, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 200, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 200 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 200, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 200, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 200 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 200, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+
+		tempRangeX--;
+	}
+
+	tempRangeX = unit[pos].GetRange() - 5;
+	if (tempRangeX >= 0 && green.y + 250 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 250, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 250, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 250 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 250, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y + 250, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y + 250 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 250, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	// RESET LAST DESCENDING
+	tempRangeX = unit[pos].GetRange() - 6;
+	if (tempRangeX >= 0 && green.y + 300 < 500)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y + 300, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+
+	// RESET FIRST ASCENDING
+	tempRangeX = unit[pos].GetRange() -1;
+	if (tempRangeX >= 0 && green.y - 50 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y - 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y - 50 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y - 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y - 50 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y - 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y - 50 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y - 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y - 50 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y - 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y - 50 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 50, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+
+	//RESET COUNT ASCENDING
+	tempRangeX = unit[pos].GetRange() - 2;
+	if (tempRangeX >= 0 && green.y - 100 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y - 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y - 100 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y - 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y - 100 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y - 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y - 100 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y - 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y - 100 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 100, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+
+	//RESET VARS ASCENDING
+	tempRangeX = unit[pos].GetRange() - 3;
+	if (tempRangeX >= 0 && green.y - 150 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 150, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y - 150, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y - 150 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 150, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y - 150, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y - 150 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 150, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y - 150, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y - 150 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 150, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+
+	// RESET NEXT LEVEL OF VALUES
+	tempRangeX = unit[pos].GetRange() - 4;
+
+	if (tempRangeX >= 0 && green.y - 200 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 200, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y - 200, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y - 200 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 200, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y - 200, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y - 200 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 200, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	//RESET ASCENDING VALUE
+	tempRangeX = unit[pos].GetRange() - 5;
+	if (tempRangeX >= 0 && green.y - 250 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 250, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		D3DXVECTOR3 position1 ((float)green.x + (tempRangeX * 50), (float)green.y - 250, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position1, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	if (tempRangeX >= 0 && green.y - 250 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 250, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+	// RESET FINAL ASCENDING LEVEL
+	tempRangeX = unit[pos].GetRange() - 6;
+	if (tempRangeX >= 0 && green.y - 300 >= 100)
+	{
+		D3DXVECTOR3 position ((float)green.x - (tempRangeX * 50), (float)green.y - 300, 0);		
+		spriteobj->Draw(moveGreen, &move_Rect, NULL, &position, D3DCOLOR_XRGB(255,255,255));
+		tempRangeX--;
+	}
+
+	if (KEY_DOWN(VK_RIGHT))
+	{
+		Sleep(100);
+		unit[pos].SetDestX(unit[pos].GetDestX() + 1);
+	}
+	if (KEY_DOWN(VK_LEFT))
+	{
+		Sleep(100);
+		unit[pos].SetDestX(unit[pos].GetDestX() - 1);
+	}
+	if (KEY_DOWN(VK_DOWN))
+	{
+		Sleep(100);
+		unit[pos].SetDestY(unit[pos].GetDestY() + 1);
+	}
+	if (KEY_DOWN(VK_UP))
+	{
+		Sleep(100);
+		unit[pos].SetDestY(unit[pos].GetDestY() - 1);
+	}
+
+	//	unit[pos].SetDestY(unit[pos].GetX());
+	// MOVEMENT OF SELECTION TILE IN BATTLEGROUNDS GREEN, RED, AND BLUE SELECTION TILES
+	// This also includes the collision for each battleground 1-4
+	
+	if (battleSequence == 1 && 
+		((unit[pos].GetDestX() == 5 && unit[pos].GetDestY() == 4) || //{250, 200, 400, 300},
+		(unit[pos].GetDestX() == 5 && unit[pos].GetDestY() == 5) ||
+		(unit[pos].GetDestX() == 6 && unit[pos].GetDestY() == 4) ||
+		(unit[pos].GetDestX() == 6 && unit[pos].GetDestY() == 5) ||
+		(unit[pos].GetDestX() == 7 && unit[pos].GetDestY() == 4) ||
+		(unit[pos].GetDestX() == 7 && unit[pos].GetDestY() == 5) ||
+		(unit[pos].GetDestX() == 2 && unit[pos].GetDestY() == 9) || //{100, 450, 150, 500}
+		(unit[pos].GetDestX() == 11 && unit[pos].GetDestY() == 7)|| //{350, 550, 450, 600}
+		(unit[pos].GetDestX() == 12 && unit[pos].GetDestY() == 7)))
+	{
+		D3DXVECTOR3 position0 ((float)(unit[pos].GetDestX() * 50),	(float)unit[pos].GetDestY() * 50, 0);
+		spriteobj->Draw(moveRed, &move_Rect, NULL, &position0, D3DCOLOR_XRGB(255,255,255));
+		canMove = false;
+	}
+	else if (battleSequence == 2 &&
+		((unit[pos].GetDestX() == 6 && unit[pos].GetDestY() == 5) || 
+		(unit[pos].GetDestX() == 7 && unit[pos].GetDestY() == 5) ||
+		(unit[pos].GetDestX() == 9 && unit[pos].GetDestY() == 5) ||
+		(unit[pos].GetDestX() == 10 && unit[pos].GetDestY() == 5)||
+		(unit[pos].GetDestX() == 10 && unit[pos].GetDestY() == 4)||
+		(unit[pos].GetDestX() == 11 && unit[pos].GetDestY() == 4)||
+		(unit[pos].GetDestX() == 8 && unit[pos].GetDestY() == 8) || 
+		(unit[pos].GetDestX() == 9 && unit[pos].GetDestY() == 8) ||
+		(unit[pos].GetDestX() == 9 && unit[pos].GetDestY() == 9) ||
+		(unit[pos].GetDestX() == 10 && unit[pos].GetDestY() == 9)))
+	{
+		D3DXVECTOR3 position0 ((float)(unit[pos].GetDestX() * 50),	(float)unit[pos].GetDestY() * 50, 0);
+		spriteobj->Draw(moveRed, &move_Rect, NULL, &position0, D3DCOLOR_XRGB(255,255,255));
+		canMove = false;
+	}
+	else if (battleSequence == 3 &&
+		((unit[pos].GetDestX() == 9 && unit[pos].GetDestY() == 2) || 
+		(unit[pos].GetDestX() == 10 && unit[pos].GetDestY() == 2) ||
+		(unit[pos].GetDestX() == 2 && unit[pos].GetDestY() == 8) ||
+		(unit[pos].GetDestX() == 3 && unit[pos].GetDestY() == 8) ||
+		(unit[pos].GetDestX() == 3 && unit[pos].GetDestY() == 9)))
+	{
+		D3DXVECTOR3 position0 ((float)(unit[pos].GetDestX() * 50),	(float)unit[pos].GetDestY() * 50, 0);
+		spriteobj->Draw(moveRed, &move_Rect, NULL, &position0, D3DCOLOR_XRGB(255,255,255));
+		canMove = false;
+	}
+	else if (battleSequence == 4 && 
+		((unit[pos].GetDestX() == 8 && unit[pos].GetDestY() == 2)||
+		(unit[pos].GetDestX() == 9 && unit[pos].GetDestY() == 2) ||
+		(unit[pos].GetDestX() == 10 && unit[pos].GetDestY() == 2)||
+		(unit[pos].GetDestX() == 6 && unit[pos].GetDestY() == 6) ||
+		(unit[pos].GetDestX() == 7 && unit[pos].GetDestY() == 6) ||
+		(unit[pos].GetDestX() == 8 && unit[pos].GetDestY() == 6) ||
+		(unit[pos].GetDestX() == 6 && unit[pos].GetDestY() == 7) || 
+		(unit[pos].GetDestX() == 7 && unit[pos].GetDestY() == 7) || 
+		(unit[pos].GetDestX() == 8 && unit[pos].GetDestY() == 7)))
+	{
+		D3DXVECTOR3 position0 ((float)(unit[pos].GetDestX() * 50),	(float)unit[pos].GetDestY() * 50, 0);
+		spriteobj->Draw(moveRed, &move_Rect, NULL, &position0, D3DCOLOR_XRGB(255,255,255));
+		canMove = false;
+	}
+	else if ((unit[pos].GetDestX() < unit[pos].GetX() + unit[pos].GetRange() + 1 && unit[pos].GetDestX() > unit[pos].GetX() - unit[pos].GetRange() - 1 && unit[pos].GetDestY() == unit[pos].GetY() + 2) ||
+		(unit[pos].GetDestX() < unit[pos].GetX() + unit[pos].GetRange() && unit[pos].GetDestX() > unit[pos].GetX() - unit[pos].GetRange() && unit[pos].GetDestY() == unit[pos].GetY() + 1) ||
+		(unit[pos].GetDestX() < unit[pos].GetX() + unit[pos].GetRange() - 1 && unit[pos].GetDestX() > unit[pos].GetX() - unit[pos].GetRange() + 1 && unit[pos].GetDestY() == unit[pos].GetY()) ||
+		(unit[pos].GetDestX() < unit[pos].GetX() + unit[pos].GetRange() - 2 && unit[pos].GetDestX() > unit[pos].GetX() - unit[pos].GetRange() + 2 && unit[pos].GetDestY() == unit[pos].GetY() - 1) ||
+		(unit[pos].GetDestX() < unit[pos].GetX() + unit[pos].GetRange() - 3 && unit[pos].GetDestX() > unit[pos].GetX() - unit[pos].GetRange() + 3 && unit[pos].GetDestY() == unit[pos].GetY() - 2) ||
+		(unit[pos].GetDestX() < unit[pos].GetX() + unit[pos].GetRange() - 4 && unit[pos].GetDestX() > unit[pos].GetX() - unit[pos].GetRange() + 4 && unit[pos].GetDestY() == unit[pos].GetY() - 3) ||
+		(unit[pos].GetDestX() < unit[pos].GetX() + unit[pos].GetRange() - 5 && unit[pos].GetDestX() > unit[pos].GetX() - unit[pos].GetRange() + 5 && unit[pos].GetDestY() == unit[pos].GetY() - 4) ||
+		(unit[pos].GetDestX() < unit[pos].GetX() + unit[pos].GetRange() - 6 && unit[pos].GetDestX() > unit[pos].GetX() - unit[pos].GetRange() + 6 && unit[pos].GetDestY() == unit[pos].GetY() - 5) ||
+		(unit[pos].GetDestX() < unit[pos].GetX() + unit[pos].GetRange() && unit[pos].GetDestX() > unit[pos].GetX() - unit[pos].GetRange() && unit[pos].GetDestY() == unit[pos].GetY() + 3) ||
+		(unit[pos].GetDestX() < unit[pos].GetX() + unit[pos].GetRange() - 1 && unit[pos].GetDestX() > unit[pos].GetX() - unit[pos].GetRange() + 1 && unit[pos].GetDestY() == unit[pos].GetY()) ||
+		(unit[pos].GetDestX() < unit[pos].GetX() + unit[pos].GetRange() - 1 && unit[pos].GetDestX() > unit[pos].GetX() - unit[pos].GetRange() + 1 && unit[pos].GetDestY() == unit[pos].GetY() + 4) ||
+		(unit[pos].GetDestX() < unit[pos].GetX() + unit[pos].GetRange() - 2 && unit[pos].GetDestX() > unit[pos].GetX() - unit[pos].GetRange() + 2 && unit[pos].GetDestY() == unit[pos].GetY() + 5) ||
+		(unit[pos].GetDestX() < unit[pos].GetX() + unit[pos].GetRange() - 3 && unit[pos].GetDestX() > unit[pos].GetX() - unit[pos].GetRange() + 3 && unit[pos].GetDestY() == unit[pos].GetY() + 6) ||
+		(unit[pos].GetDestX() < unit[pos].GetX() + unit[pos].GetRange() - 4 && unit[pos].GetDestX() > unit[pos].GetX() - unit[pos].GetRange() + 4 && unit[pos].GetDestY() == unit[pos].GetY() + 7) ||
+		(unit[pos].GetDestX() < unit[pos].GetX() + unit[pos].GetRange() - 5 && unit[pos].GetDestX() > unit[pos].GetX() - unit[pos].GetRange() + 5 && unit[pos].GetDestY() == unit[pos].GetY() + 8) )
+	{
+		D3DXVECTOR3 position0 ((float)(unit[pos].GetDestX() * 50),	(float)unit[pos].GetDestY() * 50, 0);			//Initial Position
+		spriteobj->Draw(moveBlueGreen, &move_Rect, NULL, &position0, D3DCOLOR_XRGB(255,255,255));
+		canMove = true;
+	}
+	else
+	{
+		D3DXVECTOR3 position0 ((float)(unit[pos].GetDestX() * 50),	(float)unit[pos].GetDestY() * 50, 0);			//Initial Position
+		spriteobj->Draw(moveBlueRed, &move_Rect, NULL, &position0, D3DCOLOR_XRGB(255,255,255));
+		canMove = false;
+	}
+
+#pragma endregion
+
+	//unit[pos].IdleSprite();
+
+	if (KEY_DOWN(VK_RETURN) && canMove)
+	{
+		Sleep(200);
+
+		float posX = unit[pos].GetDestX();
+		float posY = unit[pos].GetDestY()-2;
+
+		unit[pos].Move(posX,posY);
+		unit[pos].SetX(posX);
+		unit[pos].SetY(posY);
+		// SET TRUE FOR ANIMATION
+	//unit[pos].WalkSprite();
+	//	if (unit[pos]
+		endTurn = true;
+	}
+	// PREVENT SELECTION FROM GOING OUTSIDE OF BATTLE AREA
+	if (unit[pos].GetDestX() > 15)
+		unit[pos].SetDestX(15);
+	if (unit[pos].GetDestX() * 50 < 0)
+		unit[pos].SetDestX(0);
+	if (unit[pos].GetDestY() * 50 < 100)
+		unit[pos].SetDestY(2);
+	if (unit[pos].GetDestY() * 50 > 450)
+		unit[pos].SetDestY(9);
+}
+
+#pragma region SPRITE
+//
+//void ANIMATE_SPRITE(SPRITE sprite, vector<UNITS> &unit, int pos)
+//{
+//	if (unit[pos].walk = true)
+//
+//}
+//
+//LPDIRECT3DTEXTURE9 ID_SPRITE(SPRITE sprite, vector<UNITS> &unit, int pos)
+//{
+//	if (unit[pos] == pixie)
+//	{
+//	RECT Sprite_rect;
+//
+//
+//	Sprite_rect.left = 0; //(pixie_sprite.frame % pixie_sprite.columns) * pixie_sprite.width;
+//	Sprite_rect.top = 0; //(pixie_sprite.frame / pixie_sprite.columns) * pixie_sprite.height;
+//	Sprite_rect.right = 128; //Sprite_rect.left +  pixie_sprite.width;
+//	Sprite_rect.bottom = 128; // Sprite_rect.top + pixie_sprite.height;
+//
+//	D3DXVECTOR3 Sprite_POS ((float)0, (float)100-64, 0);
+//		spriteobj->Draw(pixie_image, &Sprite_rect, NULL, &Sprite_POS, D3DCOLOR_XRGB(255,255,255));
+//	}
+//
+//	//	break;
+//	//case pixieR:
+//	//	break;
+//	//case cyclops:
+//	//	break;
+//	//case cyclopsR:
+//	//	break;
+//	//case nagaQueen:
+//	//	break;
+//	//case nagaQueenR:
+//	//	break;
+//	//case azureDragon:
+//	//	break;
+//	//case azureDragonR:
+//	//	break;
+//	//case skeleton:		//Necropolis
+//	//	break;
+//	//case skeletonR:
+//	//	break;
+//	//case powerLich:
+//	//	break;
+//	//case powerLichR:
+//	//	break;
+//	//case wraith:
+//	//	break;
+//	//case wraithR:
+//	//	break;
+//	//case boneDragon:
+//	//	break;
+//	//case boneDragonR:
+//	//	break;
+//	//case centaur:
+//	//	break;		//Rampart
+//	//case centaurR:
+//	//	break;
+//	//case elf:
+//	//	break;
+//	//case elfR:
+//	//	break;
+//	//case unicorn:
+//	//	break;
+//	//case unicornR:
+//	//	break;
+//	//case goldDragon:
+//	//	break;
+//	//case goldDragonR:
+//	//	break;
+//	//case zombie:
+//	//	break;		//AI units
+//	//case zombieR:
+//	//	break;
+//	//case cerberus:
+//	//	break;
+//	//case cerberusR:
+//	//	break;
+//	//case golem:
+//	//	break;
+//	//case golemR:
+//	//	break;
+//	//case evilEye:
+//	//	break;
+//	//case evilEyeR;:
+//	//	break;
+//	//}
+//}
+#pragma endregion
